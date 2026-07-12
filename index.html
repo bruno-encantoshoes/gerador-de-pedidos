@@ -1061,13 +1061,9 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     <div id="companyForm">
       <input type="hidden" id="cfId">
       <div class="modal-form-grid">
-        <div class="field"><label>Nome / Razão Social</label><input type="text" id="cfNome"></div>
-        <div class="field"><label>CNPJ / CPF</label><input type="text" id="cfDoc"></div>
-        <div class="field" style="grid-column:1/-1;"><label>Endereço</label><input type="text" id="cfEnd"></div>
-        <div class="field"><label>Cidade / UF</label><input type="text" id="cfCidadeUf" placeholder="Ex: Duque de Caxias, RJ"></div>
-        <div class="field"><label>Tipo</label><input type="text" id="cfTipo" placeholder="Ex: Próprio, Mercado Livre"></div>
-        <div class="field"><label>Telefone</label><input type="text" id="cfTel"></div>
-        <div class="field"><label>E-mail</label><input type="text" id="cfEmail"></div>
+        <div class="field" style="grid-column:1/-1;"><label>Nome / Razão Social</label><input type="text" id="cfNome"></div>
+        <div class="field"><label>CNPJ / CPF</label><input type="text" id="cfDoc" placeholder="00.000.000/0000-00"></div>
+        <div class="field"><label>Cidade</label><input type="text" id="cfCidadeUf" placeholder="Ex: Duque de Caxias"></div>
       </div>
       <div class="modal-actions">
         <button class="primary" id="btnSaveCompany">Salvar empresa</button>
@@ -1298,6 +1294,37 @@ function attachCurrencyMask(input){
   });
 }
 
+/* ---------- Máscara de CNPJ / CPF ---------- */
+/* Até 11 dígitos formata como CPF (000.000.000-00); a partir do 12º dígito
+   passa a formatar como CNPJ (00.000.000/0000-00). */
+
+function formatCnpjCpfDigits(str){
+  let digits = String(str || '').replace(/\D/g, '');
+  if(digits.length <= 11){
+    digits = digits.slice(0, 11);
+    let out = digits.slice(0, 3);
+    if(digits.length > 3) out += '.' + digits.slice(3, 6);
+    if(digits.length > 6) out += '.' + digits.slice(6, 9);
+    if(digits.length > 9) out += '-' + digits.slice(9, 11);
+    return out;
+  }
+  digits = digits.slice(0, 14);
+  let out = digits.slice(0, 2);
+  if(digits.length > 2) out += '.' + digits.slice(2, 5);
+  if(digits.length > 5) out += '.' + digits.slice(5, 8);
+  if(digits.length > 8) out += '/' + digits.slice(8, 12);
+  if(digits.length > 12) out += '-' + digits.slice(12, 14);
+  return out;
+}
+
+function attachCnpjCpfMask(input){
+  input.addEventListener('input', (e) => {
+    const cursorWasAtEnd = e.target.selectionStart === e.target.value.length;
+    e.target.value = formatCnpjCpfDigits(e.target.value);
+    if(cursorWasAtEnd) e.target.setSelectionRange(e.target.value.length, e.target.value.length);
+  });
+}
+
 /* ---------- Itens ---------- */
 
 function buildCompanyOptionsHTML(selectedId){
@@ -1401,7 +1428,7 @@ function updateCount(){
 function companyLabel(id){
   const c = companies.find(x => String(x.id) === String(id));
   if(!c) return '';
-  return [c.nome, c.cnpj, c.cidadeUf, c.tipo].filter(Boolean).join(' | ');
+  return [c.nome, c.cnpj, c.cidadeUf].filter(Boolean).join(' | ');
 }
 
 function formatDateBR(iso){
@@ -1621,7 +1648,7 @@ function renderCompanySelect(){
     companies.forEach(c => {
       const opt = document.createElement('option');
       opt.value = c.id;
-      opt.textContent = [c.nome || '(sem nome)', c.cnpj || 'sem CNPJ', c.cidadeUf, c.tipo].filter(Boolean).join(' | ');
+      opt.textContent = [c.nome || '(sem nome)', c.cnpj || 'sem CNPJ', c.cidadeUf].filter(Boolean).join(' | ');
       sel.appendChild(opt);
     });
     if(companies.some(c => String(c.id) === prevValue)){
@@ -1658,11 +1685,7 @@ function renderCompanyDisplay(){
   const lines = [];
   lines.push(`<strong>${escapeHtml(c.nome || '')}</strong>`);
   if(c.cnpj) lines.push(escapeHtml(c.cnpj));
-  if(c.end) lines.push(escapeHtml(c.end));
   if(c.cidadeUf) lines.push(escapeHtml(c.cidadeUf));
-  if(c.tipo) lines.push(escapeHtml(c.tipo));
-  if(c.tel) lines.push(escapeHtml(c.tel));
-  if(c.email) lines.push(escapeHtml(c.email));
   el.innerHTML = lines.join('<br>');
 }
 
@@ -1683,7 +1706,7 @@ function renderCompanyList(){
     const item = document.createElement('div');
     item.className = 'company-list-item';
     item.innerHTML = `
-      <div class="ci-text"><div>${escapeHtml(c.nome || '(sem nome)')}</div><div class="ci-cnpj">${escapeHtml([c.cnpj, c.cidadeUf, c.tipo].filter(Boolean).join(' | '))}</div></div>
+      <div class="ci-text"><div>${escapeHtml(c.nome || '(sem nome)')}</div><div class="ci-cnpj">${escapeHtml([c.cnpj, c.cidadeUf].filter(Boolean).join(' | '))}</div></div>
       <div class="ci-actions">
         <button class="small ghost" data-action="edit" data-id="${c.id}">Editar</button>
         <button class="small danger-text" data-action="del" data-id="${c.id}">Excluir</button>
@@ -1706,11 +1729,7 @@ function startEditCompany(id){
   document.getElementById('cfId').value = id;
   document.getElementById('cfNome').value = c.nome || '';
   document.getElementById('cfDoc').value = c.cnpj || '';
-  document.getElementById('cfEnd').value = c.end || '';
   document.getElementById('cfCidadeUf').value = c.cidadeUf || '';
-  document.getElementById('cfTipo').value = c.tipo || '';
-  document.getElementById('cfTel').value = c.tel || '';
-  document.getElementById('cfEmail').value = c.email || '';
   document.getElementById('btnCancelEdit').style.display = 'inline-block';
   document.getElementById('btnSaveCompany').textContent = 'Salvar alterações';
   document.getElementById('cfNome').focus();
@@ -1721,11 +1740,7 @@ function resetCompanyForm(){
   document.getElementById('cfId').value = '';
   document.getElementById('cfNome').value = '';
   document.getElementById('cfDoc').value = '';
-  document.getElementById('cfEnd').value = '';
   document.getElementById('cfCidadeUf').value = '';
-  document.getElementById('cfTipo').value = '';
-  document.getElementById('cfTel').value = '';
-  document.getElementById('cfEmail').value = '';
   document.getElementById('btnCancelEdit').style.display = 'none';
   document.getElementById('btnSaveCompany').textContent = 'Salvar empresa';
 }
@@ -1746,11 +1761,7 @@ document.getElementById('btnSaveCompany').addEventListener('click', () => {
   const data = {
     nome,
     cnpj,
-    end: document.getElementById('cfEnd').value.trim(),
     cidadeUf: document.getElementById('cfCidadeUf').value.trim(),
-    tipo: document.getElementById('cfTipo').value.trim(),
-    tel: document.getElementById('cfTel').value.trim(),
-    email: document.getElementById('cfEmail').value.trim(),
   };
   if(editingCompanyId){
     const c = companies.find(x => x.id === editingCompanyId);
@@ -1813,11 +1824,7 @@ document.getElementById('fileImportCompanies').addEventListener('change', (e) =>
           id: companySeq,
           nome: c.nome || '',
           cnpj: c.cnpj || '',
-          end: c.end || '',
-          cidadeUf: c.cidadeUf || '',
-          tipo: c.tipo || '',
-          tel: c.tel || '',
-          email: c.email || ''
+          cidadeUf: c.cidadeUf || ''
         });
       });
       renderCompanyList();
@@ -2388,7 +2395,7 @@ document.getElementById('btnPdf').addEventListener('click', () => {
   doc.text('Fornecedor', colX + colW + 20, y);
   y += 14;
   doc.setFont('helvetica','normal');
-  const empLines = company ? [company.nome, company.cnpj, company.end, company.tel, company.email].filter(Boolean) : [];
+  const empLines = company ? [company.nome, company.cnpj, company.cidadeUf].filter(Boolean) : [];
   const forLines = [g('forNome')].filter(Boolean);
   const maxLines = Math.max(empLines.length, forLines.length);
   for(let i=0;i<maxLines;i++){
@@ -2437,6 +2444,7 @@ renderGradeSelect();
 initOrderDefaults();
 recalcTotals();
 updateCount();
+attachCnpjCpfMask(document.getElementById('cfDoc'));
 
 /* ---------- Portão de acesso: conectar ao GitHub + senha ---------- */
 
