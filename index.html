@@ -802,6 +802,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     border-radius:8px;
   }
   .grade-apply-bar .field{margin-bottom:0;}
+  .h2-actions{display:flex;gap:8px;flex-wrap:wrap;}
   .grade-rows-table{width:100%;border-collapse:collapse;}
   .grade-rows-table td{padding:4px 6px;}
   .grade-rows-table input{
@@ -965,18 +966,36 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   <div class="card">
     <h2>
       <span>Itens do Pedido <span class="badge-count" id="itemCount">0 itens</span></span>
-      <button type="button" class="small" id="btnManageGrades">Gerenciar grades</button>
+      <span class="h2-actions">
+        <button type="button" class="small" id="btnManageGrades">Cadastrar grades</button>
+        <button type="button" class="small" id="btnManageProportions">Cadastrar proporção</button>
+      </span>
     </h2>
     <div class="note-banner">Os campos de CNPJ usam as empresas cadastradas em "Gerenciar empresas".</div>
 
     <div class="grade-apply-bar">
-      <div class="field" style="width:190px;">
+      <div class="field" style="width:170px;">
+        <label>Método</label>
+        <select id="applyMethodSelect">
+          <option value="grade">Por Grade</option>
+          <option value="proportion">Por Proporção</option>
+        </select>
+      </div>
+      <div class="field apply-mode-grade" style="width:190px;">
         <label>Grade</label>
         <select id="applyGradeSelect"></select>
       </div>
-      <div class="field" style="width:100px;">
+      <div class="field apply-mode-grade" style="width:100px;">
         <label>Fator (×)</label>
         <input type="number" id="applyGradeFactor" min="1" step="1" value="1">
+      </div>
+      <div class="field apply-mode-proportion" style="width:190px;display:none;">
+        <label>Proporção</label>
+        <select id="applyProportionSelect"></select>
+      </div>
+      <div class="field apply-mode-proportion" style="width:110px;display:none;">
+        <label>Total (un.)</label>
+        <input type="number" id="applyProportionTotal" min="1" step="1" placeholder="Ex: 100">
       </div>
       <div class="field" style="flex:1;min-width:160px;">
         <label>Produto/Descrição</label>
@@ -996,7 +1015,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       </div>
       <button type="button" class="primary" id="btnApplyGrade">Nova leva desta grade</button>
     </div>
-    <div class="hint" style="margin-top:-6px;margin-bottom:14px;">Assim que você preenche Produto/Referência/Cor/Preço aqui, as linhas da tabela abaixo já vão sendo preenchidas sozinhas (sem precisar de grade). Se escolher uma grade, o Fator também entra em ação para gerar as linhas por tamanho. Use "Nova leva desta grade" para começar outra leva (ex: outra cor) sem mexer na que já está pronta.</div>
+    <div class="hint" style="margin-top:-6px;margin-bottom:14px;">Assim que você preenche Produto/Referência/Cor/Preço aqui, as linhas da tabela abaixo já vão sendo preenchidas sozinhas. Escolha o Método: "Por Grade" usa a quantidade fixa cadastrada (multiplicada pelo Fator); "Por Proporção" divide o Total de peças que você digitar de acordo com a % cadastrada para cada tamanho. Use "Nova leva" para começar outra leva (ex: outra cor) sem mexer na que já está pronta.</div>
 
     <div class="table-wrap">
       <table class="items">
@@ -1110,6 +1129,45 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     </div>
 
     <div class="hint">Suas grades já ficam salvas automaticamente no GitHub.</div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="proportionModalOverlay">
+  <div class="modal">
+    <button class="modal-close" id="btnCloseProportionModal">✕</button>
+    <h3>Minhas Proporções</h3>
+    <div class="modal-sub">Cadastre a % que cada tamanho representa do total. Depois é só selecionar a proporção e digitar o total de peças na tela de itens — as quantidades de cada tamanho são calculadas automaticamente.</div>
+
+    <div class="company-list" id="proportionListEl"></div>
+
+    <div id="proportionForm">
+      <input type="hidden" id="propId">
+      <div class="field"><label>Nome da Proporção</label><input type="text" id="propNome" placeholder="Ex: Curva padrão feminina"></div>
+
+      <div class="field">
+        <label>Colar lista rápida (um tamanho por linha, ex: 37-15 para 15%)</label>
+        <textarea id="propPaste" placeholder="37-15&#10;38-20&#10;39-25&#10;40-20&#10;41-15&#10;42-5"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="small" id="btnParsePropPaste">Processar lista colada</button>
+        <button type="button" class="small ghost" id="btnAddPropRow">+ Adicionar tamanho manualmente</button>
+      </div>
+
+      <div class="table-wrap" style="margin-top:10px;">
+        <table class="grade-rows-table">
+          <thead><tr><th style="text-align:left;font-size:11px;color:var(--ink-soft);">Tamanho</th><th style="text-align:left;font-size:11px;color:var(--ink-soft);">Proporção (%)</th><th></th></tr></thead>
+          <tbody id="proportionRowsBody"></tbody>
+        </table>
+      </div>
+      <div class="hint" id="proportionTotalHint">Nenhum tamanho adicionado ainda.</div>
+
+      <div class="modal-actions">
+        <button class="primary" id="btnSaveProportion">Salvar proporção</button>
+        <button class="ghost" id="btnCancelEditProportion" style="display:none;">Cancelar edição</button>
+      </div>
+    </div>
+
+    <div class="hint">Suas proporções já ficam salvas automaticamente no GitHub.</div>
   </div>
 </div>
 
@@ -1281,6 +1339,7 @@ async function doGithubSave(key){
   try{
     if(key === 'companies') await ghWriteFile('companies.json', {companies}, 'Atualiza empresas');
     else if(key === 'grades') await ghWriteFile('grades.json', {grades}, 'Atualiza grades');
+    else if(key === 'proportions') await ghWriteFile('proportions.json', {proportions}, 'Atualiza proporções');
     else if(key === 'marcas') await ghWriteFile('marcas.json', {marcas: marcasFornecedor}, 'Atualiza marcas/fornecedores');
     else if(key === 'prazos') await ghWriteFile('prazos.json', {prazos: prazosPagto}, 'Atualiza prazos de pagamento');
     else if(key === 'orders') await ghWriteFile('orders.json', {orders}, 'Atualiza histórico de pedidos');
@@ -2148,33 +2207,266 @@ function renderGradeSelect(){
   }
 }
 
-/* Enquanto uma grade está "ativa", os campos da barra (fator, produto, referência,
-   cor, preço) preenchem automaticamente as linhas dela na tabela de itens, em tempo real. */
-let activeGradeBatch = null; // { gradeId, rows: [{tr, pair}] }
+/* ---------- Proporções (% de cada tamanho sobre um total) ---------- */
 
-function startGradeBatch(gradeId){
-  const grade = grades.find(g => String(g.id) === String(gradeId));
-  if(!grade){ activeGradeBatch = null; return; }
-  const rows = grade.pares.map(p => ({ tr: addItem(false), pair: p }));
-  activeGradeBatch = { gradeId: grade.id, rows };
-  syncActiveGradeBatch();
+let proportions = [];
+let proportionSeq = 0;
+let editingProportionId = null;
+const proportionRowsBody = document.getElementById('proportionRowsBody');
+
+function addProportionRow(tam, pct){
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="text" data-field="ptam" value="${escapeHtml(tam || '')}" placeholder="37"></td>
+    <td><input type="number" min="0" step="0.01" data-field="ppct" value="${pct !== undefined ? pct : ''}"></td>
+    <td><button type="button" class="danger-text" title="Remover tamanho">✕</button></td>
+  `;
+  proportionRowsBody.appendChild(tr);
+  tr.querySelector('.danger-text').addEventListener('click', () => { tr.remove(); updateProportionTotalHint(); });
+  tr.querySelectorAll('input').forEach(inp => inp.addEventListener('input', updateProportionTotalHint));
+  updateProportionTotalHint();
 }
 
-function syncActiveGradeBatch(){
-  if(!activeGradeBatch) return;
-  const fator = parseFloat(document.getElementById('applyGradeFactor').value) || 1;
+function clearProportionRows(){
+  proportionRowsBody.innerHTML = '';
+  updateProportionTotalHint();
+}
+
+function getProportionRowsData(){
+  const rows = [];
+  proportionRowsBody.querySelectorAll('tr').forEach(tr => {
+    const tam = tr.querySelector('[data-field="ptam"]').value.trim();
+    const pct = parseFloat(tr.querySelector('[data-field="ppct"]').value) || 0;
+    if(tam) rows.push({tam, pct});
+  });
+  return rows;
+}
+
+function fmtPct(n){
+  return Number.isInteger(n) ? `${n}%` : `${n.toFixed(1)}%`;
+}
+
+function updateProportionTotalHint(){
+  const rows = getProportionRowsData();
+  const totalPct = rows.reduce((s, r) => s + r.pct, 0);
+  const el = document.getElementById('proportionTotalHint');
+  if(rows.length === 0){
+    el.textContent = 'Nenhum tamanho adicionado ainda.';
+    return;
+  }
+  let msg = `${rows.length} tamanho(s) · soma das proporções: ${fmtPct(totalPct)}`;
+  if(Math.abs(totalPct - 100) > 0.05) msg += ' (o ideal é somar 100%)';
+  el.textContent = msg;
+}
+
+document.getElementById('btnParsePropPaste').addEventListener('click', () => {
+  const text = document.getElementById('propPaste').value;
+  const lines = text.split(/\n/).map(l => l.trim()).filter(Boolean);
+  let added = 0;
+  lines.forEach(line => {
+    const parts = line.split(/[-:]+|\s+/).map(p => p.trim()).filter(Boolean);
+    if(parts.length >= 2){
+      const tam = parts[0];
+      const pct = parseFloat(parts[parts.length - 1].replace('%','').replace(',','.')) || 0;
+      addProportionRow(tam, pct);
+      added++;
+    }
+  });
+  document.getElementById('propPaste').value = '';
+  if(added === 0){
+    alert('Não consegui identificar tamanho/percentual. Use o formato "37-15", um por linha.');
+  }
+});
+
+document.getElementById('btnAddPropRow').addEventListener('click', () => addProportionRow('', 0));
+
+function renderProportionManageList(){
+  const listEl = document.getElementById('proportionListEl');
+  if(proportions.length === 0){
+    listEl.innerHTML = '<div class="empty-hint" style="padding:12px;">Nenhuma proporção cadastrada ainda.</div>';
+    return;
+  }
+  listEl.innerHTML = '';
+  proportions.forEach(p => {
+    const totalPct = p.pares.reduce((s, x) => s + x.pct, 0);
+    const item = document.createElement('div');
+    item.className = 'company-list-item';
+    item.innerHTML = `
+      <div class="ci-text"><div>${escapeHtml(p.nome)}</div><div class="ci-cnpj">${p.pares.length} tamanho(s) · ${fmtPct(totalPct)} no total</div></div>
+      <div class="ci-actions">
+        <button type="button" class="small ghost" data-action="edit" data-id="${p.id}">Editar</button>
+        <button type="button" class="small danger-text" data-action="del" data-id="${p.id}">Excluir</button>
+      </div>
+    `;
+    listEl.appendChild(item);
+  });
+  listEl.querySelectorAll('[data-action="edit"]').forEach(btn => {
+    btn.addEventListener('click', () => startEditProportion(parseInt(btn.dataset.id, 10)));
+  });
+  listEl.querySelectorAll('[data-action="del"]').forEach(btn => {
+    btn.addEventListener('click', () => deleteProportion(parseInt(btn.dataset.id, 10)));
+  });
+}
+
+function startEditProportion(id){
+  const p = proportions.find(x => x.id === id);
+  if(!p) return;
+  editingProportionId = id;
+  document.getElementById('propId').value = id;
+  document.getElementById('propNome').value = p.nome;
+  clearProportionRows();
+  p.pares.forEach(x => addProportionRow(x.tam, x.pct));
+  document.getElementById('btnCancelEditProportion').style.display = 'inline-block';
+  document.getElementById('btnSaveProportion').textContent = 'Salvar alterações';
+  document.getElementById('propNome').focus();
+}
+
+function resetProportionForm(){
+  editingProportionId = null;
+  document.getElementById('propId').value = '';
+  document.getElementById('propNome').value = '';
+  document.getElementById('propPaste').value = '';
+  clearProportionRows();
+  document.getElementById('btnCancelEditProportion').style.display = 'none';
+  document.getElementById('btnSaveProportion').textContent = 'Salvar proporção';
+}
+
+function deleteProportion(id){
+  if(!confirm('Excluir esta proporção da lista?')) return;
+  proportions = proportions.filter(p => p.id !== id);
+  if(editingProportionId === id) resetProportionForm();
+  renderProportionManageList();
+  renderProportionSelect();
+  scheduleGithubSave('proportions');
+}
+
+document.getElementById('btnSaveProportion').addEventListener('click', () => {
+  const nome = document.getElementById('propNome').value.trim();
+  const pares = getProportionRowsData();
+  if(!nome){ alert('Dê um nome para a proporção.'); return; }
+  if(pares.length === 0){ alert('Adicione ao menos um tamanho com percentual.'); return; }
+  if(editingProportionId){
+    const p = proportions.find(x => x.id === editingProportionId);
+    p.nome = nome;
+    p.pares = pares;
+  } else {
+    proportionSeq++;
+    proportions.push({ id: proportionSeq, nome, pares });
+  }
+  resetProportionForm();
+  renderProportionManageList();
+  renderProportionSelect();
+  scheduleGithubSave('proportions');
+});
+
+document.getElementById('btnCancelEditProportion').addEventListener('click', resetProportionForm);
+
+document.getElementById('btnManageProportions').addEventListener('click', () => {
+  renderProportionManageList();
+  document.getElementById('proportionModalOverlay').classList.add('open');
+});
+document.getElementById('btnCloseProportionModal').addEventListener('click', () => {
+  document.getElementById('proportionModalOverlay').classList.remove('open');
+  resetProportionForm();
+});
+document.getElementById('proportionModalOverlay').addEventListener('click', (e) => {
+  if(e.target.id === 'proportionModalOverlay'){
+    document.getElementById('proportionModalOverlay').classList.remove('open');
+    resetProportionForm();
+  }
+});
+
+function renderProportionSelect(){
+  const sel = document.getElementById('applyProportionSelect');
+  const prevValue = sel.value;
+  sel.innerHTML = '';
+  if(proportions.length === 0){
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = 'Nenhuma proporção cadastrada';
+    sel.appendChild(opt);
+  } else {
+    proportions.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.nome;
+      sel.appendChild(opt);
+    });
+    if(proportions.some(p => String(p.id) === prevValue)){
+      sel.value = prevValue;
+    }
+  }
+}
+
+/* Distribui um total inteiro de peças entre tamanhos de acordo com percentuais,
+   garantindo que a soma das quantidades resultantes seja exatamente igual ao total
+   informado (método dos maiores restos), mesmo que os percentuais cadastrados não
+   somem exatamente 100%. */
+function apportionByPercentage(pcts, total){
+  const totalInt = Math.max(0, Math.round(total) || 0);
+  const n = pcts.length;
+  if(n === 0) return [];
+  const raw = pcts.map(pct => (totalInt * (parseFloat(pct) || 0)) / 100);
+  const result = raw.map(v => Math.floor(Math.max(0, v)));
+  let diff = totalInt - result.reduce((s, v) => s + v, 0);
+  if(diff !== 0){
+    const order = raw
+      .map((v, i) => ({ i, frac: v - Math.floor(v) }))
+      .sort((a, b) => diff > 0 ? (b.frac - a.frac) : (a.frac - b.frac));
+    let guard = 0;
+    let idx = 0;
+    while(diff !== 0 && guard < totalInt + n + 10){
+      const entry = order[idx % order.length];
+      if(diff > 0){
+        result[entry.i] += 1;
+        diff--;
+      } else if(result[entry.i] > 0){
+        result[entry.i] -= 1;
+        diff++;
+      }
+      idx++; guard++;
+    }
+  }
+  return result;
+}
+
+/* Enquanto uma grade OU uma proporção está "ativa", os campos da barra (fator/total,
+   produto, referência, cor, preço) preenchem automaticamente as linhas dela na tabela
+   de itens, em tempo real. Só um método fica ativo por vez — nunca os dois juntos. */
+let activeBatch = null; // { mode: 'grade'|'proportion', sourceId, rows: [{tr, pair}] }
+
+function startBatch(mode, sourceId){
+  const list = mode === 'grade' ? grades : proportions;
+  const source = list.find(x => String(x.id) === String(sourceId));
+  if(!source){ activeBatch = null; return; }
+  const rows = source.pares.map(p => ({ tr: addItem(false), pair: p }));
+  activeBatch = { mode, sourceId: source.id, rows };
+  syncActiveBatch();
+}
+
+function syncActiveBatch(){
+  if(!activeBatch) return;
   const ref = document.getElementById('applyGradeRef').value.trim();
   const prod = document.getElementById('applyGradeProd').value.trim();
   const cor = document.getElementById('applyGradeCor').value.trim();
   const preco = document.getElementById('applyGradePreco').value;
 
-  activeGradeBatch.rows.forEach(({tr, pair}) => {
+  let qtys;
+  if(activeBatch.mode === 'grade'){
+    const fator = parseFloat(document.getElementById('applyGradeFactor').value) || 1;
+    qtys = activeBatch.rows.map(({pair}) => Math.round((parseFloat(pair.qtd) || 0) * fator));
+  } else {
+    const total = parseInt(document.getElementById('applyProportionTotal').value, 10) || 0;
+    qtys = apportionByPercentage(activeBatch.rows.map(({pair}) => pair.pct), total);
+  }
+
+  activeBatch.rows.forEach(({tr, pair}, idx) => {
     if(!tr.isConnected) return; // linha removida manualmente pelo usuário
     tr.querySelector('[data-field="prod"]').value = prod;
     tr.querySelector('[data-field="ref"]').value = ref;
     tr.querySelector('[data-field="cor"]').value = cor;
     tr.querySelector('[data-field="tam"]').value = pair.tam;
-    tr.querySelector('[data-field="qtd"]').value = Math.round((parseFloat(pair.qtd) || 0) * fator);
+    tr.querySelector('[data-field="qtd"]').value = qtys[idx];
     tr.querySelector('[data-field="preco"]').value = preco;
     recalcRow(tr);
   });
@@ -2220,17 +2512,34 @@ function scheduleSync(fn){
 // já esteja formatado em R$ quando eles lerem o campo no mesmo evento de "input".
 attachCurrencyMask(document.getElementById('applyGradePreco'));
 
+document.getElementById('applyMethodSelect').addEventListener('change', (e) => {
+  const mode = e.target.value;
+  activeBatch = null; // abandona a leva ativa; as linhas já geradas continuam na tabela
+  document.querySelectorAll('.apply-mode-grade').forEach(el => { el.style.display = mode === 'grade' ? '' : 'none'; });
+  document.querySelectorAll('.apply-mode-proportion').forEach(el => { el.style.display = mode === 'proportion' ? '' : 'none'; });
+  document.getElementById('btnApplyGrade').textContent = mode === 'proportion' ? 'Nova leva desta proporção' : 'Nova leva desta grade';
+});
+
 document.getElementById('applyGradeSelect').addEventListener('change', (e) => {
   const gradeId = e.target.value;
-  if(!gradeId){ activeGradeBatch = null; return; }
-  startGradeBatch(gradeId);
+  if(!gradeId){ activeBatch = null; return; }
+  startBatch('grade', gradeId);
+});
+
+document.getElementById('applyProportionSelect').addEventListener('change', (e) => {
+  const propId = e.target.value;
+  if(!propId){ activeBatch = null; return; }
+  startBatch('proportion', propId);
 });
 
 function syncFromBar(){
-  const gradeId = document.getElementById('applyGradeSelect').value;
-  if(gradeId){
-    if(!activeGradeBatch || String(activeGradeBatch.gradeId) !== String(gradeId)) startGradeBatch(gradeId);
-    else syncActiveGradeBatch();
+  const mode = document.getElementById('applyMethodSelect').value;
+  const sourceId = mode === 'grade'
+    ? document.getElementById('applyGradeSelect').value
+    : document.getElementById('applyProportionSelect').value;
+  if(sourceId){
+    if(!activeBatch || activeBatch.mode !== mode || String(activeBatch.sourceId) !== String(sourceId)) startBatch(mode, sourceId);
+    else syncActiveBatch();
   } else {
     applyCommonFieldsToAllRows();
   }
@@ -2241,17 +2550,37 @@ function syncFromBar(){
 });
 
 document.getElementById('applyGradeFactor').addEventListener('input', () => {
-  if(activeGradeBatch) scheduleSync(syncActiveGradeBatch);
+  if(activeBatch && activeBatch.mode === 'grade') scheduleSync(syncActiveBatch);
+});
+
+document.getElementById('applyProportionTotal').addEventListener('input', () => {
+  if(activeBatch && activeBatch.mode === 'proportion') scheduleSync(syncActiveBatch);
 });
 
 document.getElementById('btnApplyGrade').addEventListener('click', () => {
-  const gradeId = document.getElementById('applyGradeSelect').value;
-  if(!gradeId){
-    alert('Selecione uma grade cadastrada. Se ainda não tem nenhuma, clique em "Gerenciar grades" para criar.');
-    return;
+  const mode = document.getElementById('applyMethodSelect').value;
+  if(mode === 'grade'){
+    const gradeId = document.getElementById('applyGradeSelect').value;
+    if(!gradeId){
+      alert('Selecione uma grade cadastrada. Se ainda não tem nenhuma, clique em "Cadastrar grades" para criar.');
+      return;
+    }
+    // Começa uma nova leva independente desta grade (útil para uma 2ª cor do mesmo modelo, por exemplo).
+    startBatch('grade', gradeId);
+  } else {
+    const propId = document.getElementById('applyProportionSelect').value;
+    if(!propId){
+      alert('Selecione uma proporção cadastrada. Se ainda não tem nenhuma, clique em "Cadastrar proporção" para criar.');
+      return;
+    }
+    const total = parseInt(document.getElementById('applyProportionTotal').value, 10) || 0;
+    if(total <= 0){
+      alert('Informe o total de unidades desse pedido.');
+      return;
+    }
+    // Começa uma nova leva independente desta proporção (útil para uma 2ª cor do mesmo modelo, por exemplo).
+    startBatch('proportion', propId);
   }
-  // Começa uma nova leva independente desta grade (útil para uma 2ª cor do mesmo modelo, por exemplo).
-  startGradeBatch(gradeId);
 });
 
 /* ---------- Pedido: novo / init ---------- */
@@ -2269,6 +2598,7 @@ document.getElementById('btnAdd5').addEventListener('click', () => { for(let i=0
 
 document.getElementById('btnNew').addEventListener('click', () => {
   if(!confirm('Começar um novo pedido? Os itens e observações preenchidos serão perdidos (baixe o PDF/Excel antes, se precisar). As empresas cadastradas serão mantidas.')) return;
+  activeBatch = null;
   tbody.innerHTML = '';
   document.getElementById('forNome').value = '';
   document.getElementById('ordObsGerais').value = '';
@@ -2352,6 +2682,7 @@ function loadOrderFromHistory(ordNum){
     renderCompanyDisplay();
   }
 
+  activeBatch = null;
   tbody.innerHTML = '';
   o.items.forEach(it => {
     const tr = addItem(false);
@@ -2525,6 +2856,7 @@ document.getElementById('btnPdf').addEventListener('click', () => {
 // init
 renderCompanySelect();
 renderGradeSelect();
+renderProportionSelect();
 initOrderDefaults();
 recalcTotals();
 updateCount();
@@ -2668,9 +3000,10 @@ document.getElementById('btnLogout').addEventListener('click', () => {
 
 async function unlockApp(){
   try{
-    const [companiesFile, gradesFile, marcasFile, prazosFile, ordersFile] = await Promise.all([
+    const [companiesFile, gradesFile, proportionsFile, marcasFile, prazosFile, ordersFile] = await Promise.all([
       ghReadFile('companies.json'),
       ghReadFile('grades.json'),
+      ghReadFile('proportions.json'),
       ghReadFile('marcas.json'),
       ghReadFile('prazos.json'),
       ghReadFile('orders.json'),
@@ -2684,6 +3017,11 @@ async function unlockApp(){
       ghShas['grades.json'] = gradesFile.sha;
       grades = (gradesFile.data && gradesFile.data.grades) || [];
       gradeSeq = grades.reduce((max,g) => Math.max(max, g.id || 0), 0);
+    }
+    if(proportionsFile.exists){
+      ghShas['proportions.json'] = proportionsFile.sha;
+      proportions = (proportionsFile.data && proportionsFile.data.proportions) || [];
+      proportionSeq = proportions.reduce((max,p) => Math.max(max, p.id || 0), 0);
     }
     let marcasNeedMigration = false;
     if(marcasFile.exists){
@@ -2717,6 +3055,7 @@ async function unlockApp(){
     }
     renderCompanySelect();
     renderGradeSelect();
+    renderProportionSelect();
     renderMarcaSelect();
     renderPrazoSelect();
     if(marcasNeedMigration) scheduleGithubSave('marcas');
