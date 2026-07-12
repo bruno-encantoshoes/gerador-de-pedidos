@@ -685,8 +685,13 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   .col-cnpj{min-width:210px;}
   .col-resp{min-width:160px;}
   .col-rm{width:34px;}
+  .col-check{width:34px;text-align:center;}
+  .col-check input[type="checkbox"],
+  .row-check{width:16px;height:16px;cursor:pointer;}
   .subtotal-cell{font-weight:650;text-align:right;color:var(--ink);white-space:nowrap;}
   .row-num{color:var(--ink-soft);font-size:12px;width:30px;}
+  button:disabled{opacity:.45;cursor:not-allowed;}
+  button:disabled:hover{background:transparent;}
   tfoot td{
     padding-top:12px;
     font-size:13px;
@@ -809,7 +814,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   }
 
   @media print{
-    header.topbar, .add-row-bar, .col-rm, button{display:none !important;}
+    header.topbar, .add-row-bar, .col-rm, .col-check, button{display:none !important;}
   }
 
   .gate-overlay{
@@ -918,13 +923,9 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       <div class="field">
         <label>Prazo de Pagamento</label>
         <div class="field-row">
-          <input type="text" id="ordPrazoPagto" list="prazoPagtoOptions" placeholder="Ex: 60/90/120">
-          <button type="button" class="icon-btn" id="btnExportPrazos" title="Exportar prazos salvos (backup)">💾</button>
-          <button type="button" class="icon-btn" id="btnImportPrazos" title="Importar prazos salvos">📂</button>
-          <input type="file" class="file-hidden" id="fileImportPrazos" accept="application/json">
+          <select id="ordPrazoPagto"></select>
+          <button type="button" class="small" id="btnManagePrazos">Gerenciar</button>
         </div>
-        <datalist id="prazoPagtoOptions"></datalist>
-        <div class="hint">Digite um prazo novo e ele fica salvo — da próxima vez é só selecionar.</div>
       </div>
       <div class="field">
         <label>Data Faturamento</label>
@@ -949,17 +950,13 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         </div>
       </div>
       <div>
-        <h2>Dados do Fornecedor</h2>
+        <h2>
+          Dados do Fornecedor
+          <button type="button" class="small" id="btnManageMarcas">Gerenciar fornecedores</button>
+        </h2>
         <div class="field">
           <label>Marca / Fornecedor</label>
-          <div class="field-row">
-            <input type="text" id="forNome" list="marcaOptions" placeholder="Nome da marca">
-            <button type="button" class="icon-btn" id="btnExportMarcas" title="Exportar marcas salvas (backup)">💾</button>
-            <button type="button" class="icon-btn" id="btnImportMarcas" title="Importar marcas salvas">📂</button>
-            <input type="file" class="file-hidden" id="fileImportMarcas" accept="application/json">
-          </div>
-          <datalist id="marcaOptions"></datalist>
-          <div class="hint">Digite uma marca nova e ela fica salva — da próxima vez é só selecionar.</div>
+          <select id="forNome"></select>
         </div>
       </div>
     </div>
@@ -1005,6 +1002,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       <table class="items">
         <thead>
           <tr>
+            <th class="col-check"><input type="checkbox" id="selectAllItems" title="Selecionar todos"></th>
             <th class="row-num">#</th>
             <th class="col-prod">Produto / Descrição</th>
             <th class="col-ref">Referência / SKU</th>
@@ -1025,7 +1023,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         <tbody id="itemsBody"></tbody>
         <tfoot>
           <tr class="totals-row">
-            <td colspan="5" style="text-align:right;">Totais</td>
+            <td colspan="6" style="text-align:right;">Totais</td>
             <td class="col-qtd" id="totQtd" style="text-align:right;">0</td>
             <td class="col-preco"></td>
             <td class="col-sub" style="text-align:right;" id="totValor">R$ 0,00</td>
@@ -1037,6 +1035,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     <div class="add-row-bar">
       <button class="primary" id="btnAddRow">+ Adicionar item</button>
       <button class="ghost" id="btnAdd5">+ Adicionar 5 linhas</button>
+      <button type="button" class="small danger-text" id="btnDeleteSelected" disabled style="margin-left:auto;">Excluir selecionados</button>
     </div>
     <div class="hint">Dica: aperte <b>Tab</b> para passar pro próximo campo. No último campo da linha, aperte <b>Enter</b> para criar a próxima linha automaticamente.</div>
   </div>
@@ -1071,12 +1070,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       </div>
     </div>
 
-    <div class="import-export-row">
-      <button class="small" id="btnExportCompanies">💾 Exportar empresas (backup)</button>
-      <button class="small" id="btnImportCompanies">📂 Importar empresas</button>
-      <input type="file" class="file-hidden" id="fileImportCompanies" accept="application/json">
-    </div>
-    <div class="hint">Suas empresas já ficam salvas automaticamente no GitHub. Use exportar/importar só se quiser um backup extra.</div>
+    <div class="hint">Suas empresas já ficam salvas automaticamente no GitHub.</div>
   </div>
 </div>
 
@@ -1115,12 +1109,49 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       </div>
     </div>
 
-    <div class="import-export-row">
-      <button class="small" id="btnExportGrades">💾 Exportar grades (backup)</button>
-      <button class="small" id="btnImportGrades">📂 Importar grades</button>
-      <input type="file" class="file-hidden" id="fileImportGrades" accept="application/json">
+    <div class="hint">Suas grades já ficam salvas automaticamente no GitHub.</div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="marcaModalOverlay">
+  <div class="modal">
+    <button class="modal-close" id="btnCloseMarcaModal">✕</button>
+    <h3>Meus Fornecedores</h3>
+    <div class="modal-sub">Cadastre as marcas/fornecedores que você usa. Depois é só selecionar em cada pedido.</div>
+
+    <div class="company-list" id="marcaListEl"></div>
+
+    <div id="marcaForm">
+      <input type="hidden" id="mfId">
+      <div class="field"><label>Marca / Fornecedor</label><input type="text" id="mfNome" placeholder="Nome da marca"></div>
+      <div class="modal-actions">
+        <button class="primary" id="btnSaveMarca">Salvar fornecedor</button>
+        <button class="ghost" id="btnCancelEditMarca" style="display:none;">Cancelar edição</button>
+      </div>
     </div>
-    <div class="hint">Suas grades já ficam salvas automaticamente no GitHub. Use exportar/importar só se quiser um backup extra.</div>
+
+    <div class="hint">Seus fornecedores já ficam salvos automaticamente no GitHub.</div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="prazoModalOverlay">
+  <div class="modal">
+    <button class="modal-close" id="btnClosePrazoModal">✕</button>
+    <h3>Meus Prazos de Pagamento</h3>
+    <div class="modal-sub">Cadastre os prazos que você costuma usar (ex: 60/90/120). Depois é só selecionar em cada pedido.</div>
+
+    <div class="company-list" id="prazoListEl"></div>
+
+    <div id="prazoForm">
+      <input type="hidden" id="pfId">
+      <div class="field"><label>Prazo de Pagamento</label><input type="text" id="pfNome" placeholder="Ex: 60/90/120"></div>
+      <div class="modal-actions">
+        <button class="primary" id="btnSavePrazo">Salvar prazo</button>
+        <button class="ghost" id="btnCancelEditPrazo" style="display:none;">Cancelar edição</button>
+      </div>
+    </div>
+
+    <div class="hint">Seus prazos já ficam salvos automaticamente no GitHub.</div>
   </div>
 </div>
 
@@ -1345,6 +1376,7 @@ function addItem(focusFirst){
   const tr = document.createElement('tr');
   tr.dataset.id = id;
   tr.innerHTML = `
+    <td class="col-check"><input type="checkbox" class="row-check"></td>
     <td class="row-num">${id}</td>
     <td class="col-prod"><input type="text" data-field="prod" placeholder="Nome do produto"></td>
     <td class="col-ref"><input type="text" data-field="ref" placeholder="SKU-001"></td>
@@ -1383,7 +1415,10 @@ function addItem(focusFirst){
     tr.remove();
     recalcTotals();
     updateCount();
+    updateBulkDeleteState();
   });
+
+  tr.querySelector('.row-check').addEventListener('change', updateBulkDeleteState);
 
   const lastField = tr.querySelector('.last-field');
   lastField.addEventListener('keydown', (e) => {
@@ -1394,11 +1429,49 @@ function addItem(focusFirst){
   });
 
   updateCount();
+  updateBulkDeleteState();
   if(focusFirst){
     tr.querySelector('[data-field="ref"]').focus();
   }
   return tr;
 }
+
+/* ---------- Seleção em massa / exclusão em massa dos itens ---------- */
+
+function updateBulkDeleteState(){
+  const allChecks = Array.from(tbody.querySelectorAll('.row-check'));
+  const checkedCount = allChecks.filter(cb => cb.checked).length;
+  const btn = document.getElementById('btnDeleteSelected');
+  btn.disabled = checkedCount === 0;
+  btn.textContent = checkedCount > 0 ? `Excluir selecionados (${checkedCount})` : 'Excluir selecionados';
+  const selectAll = document.getElementById('selectAllItems');
+  if(allChecks.length === 0 || checkedCount === 0){
+    selectAll.checked = false;
+    selectAll.indeterminate = false;
+  } else if(checkedCount === allChecks.length){
+    selectAll.checked = true;
+    selectAll.indeterminate = false;
+  } else {
+    selectAll.checked = false;
+    selectAll.indeterminate = true;
+  }
+}
+
+document.getElementById('selectAllItems').addEventListener('change', (e) => {
+  const checked = e.target.checked;
+  tbody.querySelectorAll('.row-check').forEach(cb => { cb.checked = checked; });
+  updateBulkDeleteState();
+});
+
+document.getElementById('btnDeleteSelected').addEventListener('click', () => {
+  const checkedBoxes = tbody.querySelectorAll('.row-check:checked');
+  if(checkedBoxes.length === 0) return;
+  if(!confirm(`Excluir ${checkedBoxes.length} item(ns) selecionado(s)?`)) return;
+  checkedBoxes.forEach(cb => cb.closest('tr').remove());
+  recalcTotals();
+  updateCount();
+  updateBulkDeleteState();
+});
 
 function recalcRow(tr){
   const qtd = parseFloat(tr.querySelector('[data-field="qtd"]').value) || 0;
@@ -1504,133 +1577,233 @@ function getPagamentoText(){
 /* ---------- Prazos de pagamento salvos ---------- */
 
 let prazosPagto = [];
+let prazoSeq = 0;
+let editingPrazoId = null;
 
-function renderPrazoDatalist(){
-  const dl = document.getElementById('prazoPagtoOptions');
-  dl.innerHTML = '';
+function renderPrazoSelect(){
+  const sel = document.getElementById('ordPrazoPagto');
+  const prevValue = sel.value;
+  sel.innerHTML = '';
+  const optBlank = document.createElement('option');
+  optBlank.value = '';
+  optBlank.textContent = prazosPagto.length === 0 ? 'Nenhum prazo cadastrado' : 'Selecione um prazo';
+  sel.appendChild(optBlank);
   prazosPagto.forEach(p => {
     const opt = document.createElement('option');
-    opt.value = p;
-    dl.appendChild(opt);
+    opt.value = p.nome;
+    opt.textContent = p.nome;
+    sel.appendChild(opt);
   });
-}
-
-function savePrazoIfNew(){
-  const val = document.getElementById('ordPrazoPagto').value.trim();
-  if(val && !prazosPagto.includes(val)){
-    prazosPagto.push(val);
-    renderPrazoDatalist();
-    scheduleGithubSave('prazos');
+  if(prazosPagto.some(p => p.nome === prevValue)){
+    sel.value = prevValue;
   }
 }
 
-document.getElementById('ordPrazoPagto').addEventListener('change', savePrazoIfNew);
+function renderPrazoManageList(){
+  const listEl = document.getElementById('prazoListEl');
+  if(prazosPagto.length === 0){
+    listEl.innerHTML = '<div class="empty-hint" style="padding:12px;">Nenhum prazo cadastrado ainda.</div>';
+    return;
+  }
+  listEl.innerHTML = '';
+  prazosPagto.forEach(p => {
+    const item = document.createElement('div');
+    item.className = 'company-list-item';
+    item.innerHTML = `
+      <div class="ci-text"><div>${escapeHtml(p.nome || '(sem nome)')}</div></div>
+      <div class="ci-actions">
+        <button class="small ghost" data-action="edit" data-id="${p.id}">Editar</button>
+        <button class="small danger-text" data-action="del" data-id="${p.id}">Excluir</button>
+      </div>
+    `;
+    listEl.appendChild(item);
+  });
+  listEl.querySelectorAll('[data-action="edit"]').forEach(btn => {
+    btn.addEventListener('click', () => startEditPrazo(parseInt(btn.dataset.id, 10)));
+  });
+  listEl.querySelectorAll('[data-action="del"]').forEach(btn => {
+    btn.addEventListener('click', () => deletePrazo(parseInt(btn.dataset.id, 10)));
+  });
+}
 
-document.getElementById('btnExportPrazos').addEventListener('click', () => {
-  if(prazosPagto.length === 0){ alert('Nenhum prazo salvo para exportar.'); return; }
-  const blob = new Blob([JSON.stringify({prazos: prazosPagto}, null, 2)], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'meus-prazos.json';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+function startEditPrazo(id){
+  const p = prazosPagto.find(x => x.id === id);
+  if(!p) return;
+  editingPrazoId = id;
+  document.getElementById('pfId').value = id;
+  document.getElementById('pfNome').value = p.nome || '';
+  document.getElementById('btnCancelEditPrazo').style.display = 'inline-block';
+  document.getElementById('btnSavePrazo').textContent = 'Salvar alterações';
+  document.getElementById('pfNome').focus();
+}
+
+function resetPrazoForm(){
+  editingPrazoId = null;
+  document.getElementById('pfId').value = '';
+  document.getElementById('pfNome').value = '';
+  document.getElementById('btnCancelEditPrazo').style.display = 'none';
+  document.getElementById('btnSavePrazo').textContent = 'Salvar prazo';
+}
+
+function deletePrazo(id){
+  if(!confirm('Excluir este prazo da lista?')) return;
+  prazosPagto = prazosPagto.filter(p => p.id !== id);
+  if(editingPrazoId === id) resetPrazoForm();
+  renderPrazoManageList();
+  renderPrazoSelect();
+  scheduleGithubSave('prazos');
+}
+
+document.getElementById('btnSavePrazo').addEventListener('click', () => {
+  const nome = document.getElementById('pfNome').value.trim();
+  if(!nome){ alert('Informe o prazo de pagamento.'); return; }
+  const currentSelValue = document.getElementById('ordPrazoPagto').value;
+  const wasSelected = editingPrazoId && prazosPagto.find(p => p.id === editingPrazoId && p.nome === currentSelValue);
+  if(editingPrazoId){
+    const p = prazosPagto.find(x => x.id === editingPrazoId);
+    p.nome = nome;
+  } else {
+    prazoSeq++;
+    prazosPagto.push({ id: prazoSeq, nome });
+  }
+  resetPrazoForm();
+  renderPrazoManageList();
+  renderPrazoSelect();
+  if(wasSelected) document.getElementById('ordPrazoPagto').value = nome;
+  scheduleGithubSave('prazos');
 });
 
-document.getElementById('btnImportPrazos').addEventListener('click', () => {
-  document.getElementById('fileImportPrazos').click();
+document.getElementById('btnCancelEditPrazo').addEventListener('click', resetPrazoForm);
+
+document.getElementById('btnManagePrazos').addEventListener('click', () => {
+  renderPrazoManageList();
+  document.getElementById('prazoModalOverlay').classList.add('open');
 });
-document.getElementById('fileImportPrazos').addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = (ev) => {
-    try{
-      const data = JSON.parse(ev.target.result);
-      const list = Array.isArray(data) ? data : data.prazos;
-      if(!Array.isArray(list)) throw new Error('formato inválido');
-      let added = 0;
-      list.forEach(p => {
-        const val = String(p).trim();
-        if(val && !prazosPagto.includes(val)){ prazosPagto.push(val); added++; }
-      });
-      renderPrazoDatalist();
-      if(added > 0) scheduleGithubSave('prazos');
-      alert(`${added} prazo(s) importado(s) com sucesso.`);
-    } catch(err){
-      alert('Não foi possível ler este arquivo. Verifique se é um backup exportado por esta ferramenta.');
-    }
-    e.target.value = '';
-  };
-  reader.readAsText(file);
+document.getElementById('btnClosePrazoModal').addEventListener('click', () => {
+  document.getElementById('prazoModalOverlay').classList.remove('open');
+  resetPrazoForm();
+});
+document.getElementById('prazoModalOverlay').addEventListener('click', (e) => {
+  if(e.target.id === 'prazoModalOverlay'){
+    document.getElementById('prazoModalOverlay').classList.remove('open');
+    resetPrazoForm();
+  }
 });
 
 /* ---------- Marcas / Fornecedores salvos ---------- */
 
 let marcasFornecedor = [];
+let marcaSeq = 0;
+let editingMarcaId = null;
 
-function renderMarcaDatalist(){
-  const dl = document.getElementById('marcaOptions');
-  dl.innerHTML = '';
+function renderMarcaSelect(){
+  const sel = document.getElementById('forNome');
+  const prevValue = sel.value;
+  sel.innerHTML = '';
+  const optBlank = document.createElement('option');
+  optBlank.value = '';
+  optBlank.textContent = marcasFornecedor.length === 0 ? 'Nenhum fornecedor cadastrado' : 'Selecione um fornecedor';
+  sel.appendChild(optBlank);
   marcasFornecedor.forEach(m => {
     const opt = document.createElement('option');
-    opt.value = m;
-    dl.appendChild(opt);
+    opt.value = m.nome;
+    opt.textContent = m.nome;
+    sel.appendChild(opt);
   });
-}
-
-function saveMarcaIfNew(){
-  const val = document.getElementById('forNome').value.trim();
-  if(val && !marcasFornecedor.includes(val)){
-    marcasFornecedor.push(val);
-    renderMarcaDatalist();
-    scheduleGithubSave('marcas');
+  if(marcasFornecedor.some(m => m.nome === prevValue)){
+    sel.value = prevValue;
   }
 }
 
-document.getElementById('forNome').addEventListener('change', saveMarcaIfNew);
+function renderMarcaManageList(){
+  const listEl = document.getElementById('marcaListEl');
+  if(marcasFornecedor.length === 0){
+    listEl.innerHTML = '<div class="empty-hint" style="padding:12px;">Nenhum fornecedor cadastrado ainda.</div>';
+    return;
+  }
+  listEl.innerHTML = '';
+  marcasFornecedor.forEach(m => {
+    const item = document.createElement('div');
+    item.className = 'company-list-item';
+    item.innerHTML = `
+      <div class="ci-text"><div>${escapeHtml(m.nome || '(sem nome)')}</div></div>
+      <div class="ci-actions">
+        <button class="small ghost" data-action="edit" data-id="${m.id}">Editar</button>
+        <button class="small danger-text" data-action="del" data-id="${m.id}">Excluir</button>
+      </div>
+    `;
+    listEl.appendChild(item);
+  });
+  listEl.querySelectorAll('[data-action="edit"]').forEach(btn => {
+    btn.addEventListener('click', () => startEditMarca(parseInt(btn.dataset.id, 10)));
+  });
+  listEl.querySelectorAll('[data-action="del"]').forEach(btn => {
+    btn.addEventListener('click', () => deleteMarca(parseInt(btn.dataset.id, 10)));
+  });
+}
 
-document.getElementById('btnExportMarcas').addEventListener('click', () => {
-  if(marcasFornecedor.length === 0){ alert('Nenhuma marca salva para exportar.'); return; }
-  const blob = new Blob([JSON.stringify({marcas: marcasFornecedor}, null, 2)], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'minhas-marcas.json';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+function startEditMarca(id){
+  const m = marcasFornecedor.find(x => x.id === id);
+  if(!m) return;
+  editingMarcaId = id;
+  document.getElementById('mfId').value = id;
+  document.getElementById('mfNome').value = m.nome || '';
+  document.getElementById('btnCancelEditMarca').style.display = 'inline-block';
+  document.getElementById('btnSaveMarca').textContent = 'Salvar alterações';
+  document.getElementById('mfNome').focus();
+}
+
+function resetMarcaForm(){
+  editingMarcaId = null;
+  document.getElementById('mfId').value = '';
+  document.getElementById('mfNome').value = '';
+  document.getElementById('btnCancelEditMarca').style.display = 'none';
+  document.getElementById('btnSaveMarca').textContent = 'Salvar fornecedor';
+}
+
+function deleteMarca(id){
+  if(!confirm('Excluir este fornecedor da lista?')) return;
+  marcasFornecedor = marcasFornecedor.filter(m => m.id !== id);
+  if(editingMarcaId === id) resetMarcaForm();
+  renderMarcaManageList();
+  renderMarcaSelect();
+  scheduleGithubSave('marcas');
+}
+
+document.getElementById('btnSaveMarca').addEventListener('click', () => {
+  const nome = document.getElementById('mfNome').value.trim();
+  if(!nome){ alert('Informe o nome do fornecedor.'); return; }
+  const currentSelValue = document.getElementById('forNome').value;
+  const wasSelected = editingMarcaId && marcasFornecedor.find(m => m.id === editingMarcaId && m.nome === currentSelValue);
+  if(editingMarcaId){
+    const m = marcasFornecedor.find(x => x.id === editingMarcaId);
+    m.nome = nome;
+  } else {
+    marcaSeq++;
+    marcasFornecedor.push({ id: marcaSeq, nome });
+  }
+  resetMarcaForm();
+  renderMarcaManageList();
+  renderMarcaSelect();
+  if(wasSelected) document.getElementById('forNome').value = nome;
+  scheduleGithubSave('marcas');
 });
 
-document.getElementById('btnImportMarcas').addEventListener('click', () => {
-  document.getElementById('fileImportMarcas').click();
+document.getElementById('btnCancelEditMarca').addEventListener('click', resetMarcaForm);
+
+document.getElementById('btnManageMarcas').addEventListener('click', () => {
+  renderMarcaManageList();
+  document.getElementById('marcaModalOverlay').classList.add('open');
 });
-document.getElementById('fileImportMarcas').addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = (ev) => {
-    try{
-      const data = JSON.parse(ev.target.result);
-      const list = Array.isArray(data) ? data : data.marcas;
-      if(!Array.isArray(list)) throw new Error('formato inválido');
-      let added = 0;
-      list.forEach(m => {
-        const val = String(m).trim();
-        if(val && !marcasFornecedor.includes(val)){ marcasFornecedor.push(val); added++; }
-      });
-      renderMarcaDatalist();
-      if(added > 0) scheduleGithubSave('marcas');
-      alert(`${added} marca(s) importada(s) com sucesso.`);
-    } catch(err){
-      alert('Não foi possível ler este arquivo. Verifique se é um backup exportado por esta ferramenta.');
-    }
-    e.target.value = '';
-  };
-  reader.readAsText(file);
+document.getElementById('btnCloseMarcaModal').addEventListener('click', () => {
+  document.getElementById('marcaModalOverlay').classList.remove('open');
+  resetMarcaForm();
+});
+document.getElementById('marcaModalOverlay').addEventListener('click', (e) => {
+  if(e.target.id === 'marcaModalOverlay'){
+    document.getElementById('marcaModalOverlay').classList.remove('open');
+    resetMarcaForm();
+  }
 });
 
 /* ---------- Empresas (perfis salvos por CNPJ) ---------- */
@@ -1791,52 +1964,6 @@ document.getElementById('companyModalOverlay').addEventListener('click', (e) => 
     document.getElementById('companyModalOverlay').classList.remove('open');
     resetCompanyForm();
   }
-});
-
-document.getElementById('btnExportCompanies').addEventListener('click', () => {
-  if(companies.length === 0){ alert('Nenhuma empresa cadastrada para exportar.'); return; }
-  const blob = new Blob([JSON.stringify({companies}, null, 2)], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'minhas-empresas.json';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-});
-
-document.getElementById('btnImportCompanies').addEventListener('click', () => {
-  document.getElementById('fileImportCompanies').click();
-});
-document.getElementById('fileImportCompanies').addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = (ev) => {
-    try{
-      const data = JSON.parse(ev.target.result);
-      const list = Array.isArray(data) ? data : data.companies;
-      if(!Array.isArray(list)) throw new Error('formato inválido');
-      list.forEach(c => {
-        companySeq++;
-        companies.push({
-          id: companySeq,
-          nome: c.nome || '',
-          cnpj: c.cnpj || '',
-          cidadeUf: c.cidadeUf || ''
-        });
-      });
-      renderCompanyList();
-      renderCompanySelect();
-      if(list.length > 0) scheduleGithubSave('companies');
-      alert(`${list.length} empresa(s) importada(s) com sucesso.`);
-    } catch(err){
-      alert('Não foi possível ler este arquivo. Verifique se é um backup exportado por esta ferramenta.');
-    }
-    e.target.value = '';
-  };
-  reader.readAsText(file);
 });
 
 /* ---------- Grades (curvas de tamanho) ---------- */
@@ -2127,51 +2254,6 @@ document.getElementById('btnApplyGrade').addEventListener('click', () => {
   startGradeBatch(gradeId);
 });
 
-document.getElementById('btnExportGrades').addEventListener('click', () => {
-  if(grades.length === 0){ alert('Nenhuma grade cadastrada para exportar.'); return; }
-  const blob = new Blob([JSON.stringify({grades}, null, 2)], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'minhas-grades.json';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-});
-
-document.getElementById('btnImportGrades').addEventListener('click', () => {
-  document.getElementById('fileImportGrades').click();
-});
-document.getElementById('fileImportGrades').addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = (ev) => {
-    try{
-      const data = JSON.parse(ev.target.result);
-      const list = Array.isArray(data) ? data : data.grades;
-      if(!Array.isArray(list)) throw new Error('formato inválido');
-      list.forEach(g => {
-        gradeSeq++;
-        grades.push({
-          id: gradeSeq,
-          nome: g.nome || '(sem nome)',
-          pares: Array.isArray(g.pares) ? g.pares.map(p => ({tam: p.tam || '', qtd: parseFloat(p.qtd) || 0})) : []
-        });
-      });
-      renderGradeManageList();
-      renderGradeSelect();
-      if(list.length > 0) scheduleGithubSave('grades');
-      alert(`${list.length} grade(s) importada(s) com sucesso.`);
-    } catch(err){
-      alert('Não foi possível ler este arquivo. Verifique se é um backup exportado por esta ferramenta.');
-    }
-    e.target.value = '';
-  };
-  reader.readAsText(file);
-});
-
 /* ---------- Pedido: novo / init ---------- */
 
 function initOrderDefaults(){
@@ -2193,6 +2275,7 @@ document.getElementById('btnNew').addEventListener('click', () => {
   initOrderDefaults();
   recalcTotals();
   updateCount();
+  updateBulkDeleteState();
 });
 
 /* ---------- Histórico de pedidos (salvo no GitHub) ---------- */
@@ -2288,6 +2371,7 @@ function loadOrderFromHistory(ordNum){
   });
   recalcTotals();
   updateCount();
+  updateBulkDeleteState();
 
   document.getElementById('orderHistoryModalOverlay').classList.remove('open');
 }
@@ -2601,13 +2685,31 @@ async function unlockApp(){
       grades = (gradesFile.data && gradesFile.data.grades) || [];
       gradeSeq = grades.reduce((max,g) => Math.max(max, g.id || 0), 0);
     }
+    let marcasNeedMigration = false;
     if(marcasFile.exists){
       ghShas['marcas.json'] = marcasFile.sha;
-      marcasFornecedor = (marcasFile.data && marcasFile.data.marcas) || [];
+      const rawMarcas = (marcasFile.data && marcasFile.data.marcas) || [];
+      if(rawMarcas.length > 0 && typeof rawMarcas[0] === 'string'){
+        // dados antigos (lista de textos) -> migra para {id, nome}
+        marcasFornecedor = rawMarcas.map(nome => { marcaSeq++; return { id: marcaSeq, nome }; });
+        marcasNeedMigration = true;
+      } else {
+        marcasFornecedor = rawMarcas;
+        marcaSeq = marcasFornecedor.reduce((max,m) => Math.max(max, m.id || 0), 0);
+      }
     }
+    let prazosNeedMigration = false;
     if(prazosFile.exists){
       ghShas['prazos.json'] = prazosFile.sha;
-      prazosPagto = (prazosFile.data && prazosFile.data.prazos) || [];
+      const rawPrazos = (prazosFile.data && prazosFile.data.prazos) || [];
+      if(rawPrazos.length > 0 && typeof rawPrazos[0] === 'string'){
+        // dados antigos (lista de textos) -> migra para {id, nome}
+        prazosPagto = rawPrazos.map(nome => { prazoSeq++; return { id: prazoSeq, nome }; });
+        prazosNeedMigration = true;
+      } else {
+        prazosPagto = rawPrazos;
+        prazoSeq = prazosPagto.reduce((max,p) => Math.max(max, p.id || 0), 0);
+      }
     }
     if(ordersFile.exists){
       ghShas['orders.json'] = ordersFile.sha;
@@ -2615,8 +2717,10 @@ async function unlockApp(){
     }
     renderCompanySelect();
     renderGradeSelect();
-    renderMarcaDatalist();
-    renderPrazoDatalist();
+    renderMarcaSelect();
+    renderPrazoSelect();
+    if(marcasNeedMigration) scheduleGithubSave('marcas');
+    if(prazosNeedMigration) scheduleGithubSave('prazos');
     document.getElementById('gateOverlay').classList.add('hidden');
     document.getElementById('appRoot').style.display = '';
     setSyncStatus('Preencha os itens e gere o arquivo para enviar.', null);
