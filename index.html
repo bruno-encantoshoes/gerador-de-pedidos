@@ -2988,12 +2988,12 @@ document.getElementById('btnPdf').addEventListener('click', () => {
 
   doc.setFont('helvetica','bold');
   doc.setFontSize(16);
-  doc.text('Pedido a Fornecedor', 40, y);
+  doc.text('Pedido', 40, y);
   y += 22;
 
   doc.setFontSize(10);
   doc.setFont('helvetica','normal');
-  doc.text(`Nº do Pedido: ${g('ordNum')}    Data: ${g('ordDate')}`, 40, y);
+  doc.text(`Ordem de compra: ${g('ordNum')}    Data: ${g('ordDate')}`, 40, y);
   y += 14;
   doc.text(`Prazo de pagamento: ${getPagamentoText()}    Data de faturamento: ${formatDateBR(g('ordDataFat')) || '-'}`, 40, y);
   y += 14;
@@ -3001,7 +3001,7 @@ document.getElementById('btnPdf').addEventListener('click', () => {
 
   const colX = 40, colW = (pageWidth - 80 - 20) / 2;
   doc.setFont('helvetica','bold');
-  doc.text('Minha Empresa', colX, y);
+  doc.text('CNPJ de Faturamento', colX, y);
   doc.text('Fornecedor', colX + colW + 20, y);
   y += 14;
   doc.setFont('helvetica','normal');
@@ -3015,21 +3015,21 @@ document.getElementById('btnPdf').addEventListener('click', () => {
   }
   y += 10;
 
-  const body = items.map(it => [it.ref, it.prod, it.cor, it.tam, String(it.qtd), brl(it.preco), brl(it.sub), it.obs]);
+  const body = items.map(it => [it.prod, it.cor, it.tam, String(it.qtd), brl(it.preco), brl(it.sub), (it.triangular || 'Não'), it.obs]);
   const totQtd = items.reduce((s,it)=>s+it.qtd,0);
   const totVal = items.reduce((s,it)=>s+it.sub,0);
 
   doc.autoTable({
     startY: y,
-    head: [['Referência','Produto','Cor','Tam.','Qtd','Preço Unit.','Subtotal','Obs.']],
+    head: [['Produto','Cor','Tam.','Qtd','Preço Unit.','Subtotal','Op. Triangular','Obs.']],
     body: body,
-    foot: [['', '', '', '', String(totQtd), 'Total', brl(totVal), '']],
+    foot: [['', '', '', String(totQtd), 'Total', brl(totVal), '', '']],
     styles: {fontSize:9, cellPadding:5},
     headStyles: {fillColor:[47,111,79], textColor:255, fontStyle:'bold'},
     footStyles: {fillColor:[231,242,236], textColor:[28,36,48], fontStyle:'bold'},
     margin: {left:40, right:40},
     columnStyles: {
-      4: {halign:'right'}, 5: {halign:'right'}, 6: {halign:'right'}
+      3: {halign:'right'}, 4: {halign:'right'}, 5: {halign:'right'}
     }
   });
 
