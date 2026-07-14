@@ -2819,6 +2819,7 @@ function renderOrderHistoryList(){
       <div class="ci-text"><div>${escapeHtml(o.ordNum || '(sem número)')}</div><div class="ci-cnpj">${escapeHtml(infoBits)}</div></div>
       <div class="ci-actions">
         <button type="button" class="small ghost" data-action="load" data-ord="${escapeHtml(o.ordNum)}">Carregar</button>
+        <button type="button" class="small ghost" data-action="dup" data-ord="${escapeHtml(o.ordNum)}">Duplicar pedido</button>
         <button type="button" class="small danger-text" data-action="del" data-ord="${escapeHtml(o.ordNum)}">Excluir</button>
       </div>
     `;
@@ -2827,17 +2828,16 @@ function renderOrderHistoryList(){
   listEl.querySelectorAll('[data-action="load"]').forEach(btn => {
     btn.addEventListener('click', () => loadOrderFromHistory(btn.dataset.ord));
   });
+  listEl.querySelectorAll('[data-action="dup"]').forEach(btn => {
+    btn.addEventListener('click', () => duplicateOrderFromHistory(btn.dataset.ord));
+  });
   listEl.querySelectorAll('[data-action="del"]').forEach(btn => {
     btn.addEventListener('click', () => deleteOrderFromHistory(btn.dataset.ord));
   });
 }
 
-function loadOrderFromHistory(ordNum){
-  const o = orders.find(x => x.ordNum === ordNum);
-  if(!o) return;
-  if(!confirm(`Carregar o pedido ${ordNum}? Os itens preenchidos na tela atual serão substituídos (baixe o PDF/Excel antes, se precisar).`)) return;
-
-  document.getElementById('ordNum').value = o.ordNum || '';
+function fillOrderFormFromSnapshot(o, ordNumOverride){
+  document.getElementById('ordNum').value = ordNumOverride != null ? ordNumOverride : (o.ordNum || '');
   document.getElementById('ordDate').value = o.ordDate || '';
   document.getElementById('ordPrazoPagto').value = o.prazoPagto || '';
   document.getElementById('ordDataFat').value = o.dataFat || '';
@@ -2869,6 +2869,24 @@ function loadOrderFromHistory(ordNum){
   recalcTotals();
   updateCount();
   updateBulkDeleteState();
+}
+
+function duplicateOrderFromHistory(ordNum){
+  const o = orders.find(x => x.ordNum === ordNum);
+  if(!o) return;
+  if(!confirm(`Duplicar o pedido ${ordNum}? Um novo número de pedido será gerado e os itens preenchidos na tela atual serão substituídos (baixe o PDF/Excel antes, se precisar).`)) return;
+
+  fillOrderFormFromSnapshot(o, generateOrderNumber());
+
+  document.getElementById('orderHistoryModalOverlay').classList.remove('open');
+}
+
+function loadOrderFromHistory(ordNum){
+  const o = orders.find(x => x.ordNum === ordNum);
+  if(!o) return;
+  if(!confirm(`Carregar o pedido ${ordNum}? Os itens preenchidos na tela atual serão substituídos (baixe o PDF/Excel antes, se precisar).`)) return;
+
+  fillOrderFormFromSnapshot(o);
 
   document.getElementById('orderHistoryModalOverlay').classList.remove('open');
 }
