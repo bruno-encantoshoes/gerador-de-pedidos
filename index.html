@@ -1410,6 +1410,11 @@ let companies = [];
 let companySeq = 0;
 let editingCompanyId = null;
 let orders = [];
+// Nº (ordNum) do pedido carregado via "Abrir" no histórico. Usado para SALVAR sempre
+// no mesmo registro do histórico, mesmo que o número exibido em tela mude por algum
+// motivo (ex.: clique no botão "↻" de regenerar número) — sem isso, salvar um pedido
+// já aberto criava um pedido novo no histórico em vez de atualizar o existente.
+let editingOrderKey = null;
 
 /* ---------- Armazenamento em GitHub (Contents API) ---------- */
 
@@ -2929,6 +2934,7 @@ document.getElementById('btnAdd5').addEventListener('click', () => { for(let i=0
 
 document.getElementById('btnNew').addEventListener('click', () => {
   if(!confirm('Começar um novo pedido? Os itens e observações preenchidos serão perdidos (baixe o PDF/Excel antes, se precisar). As empresas cadastradas serão mantidas.')) return;
+  editingOrderKey = null;
   resetApplyBar();
   tbody.innerHTML = '';
   document.getElementById('forNome').value = '';
@@ -2964,8 +2970,13 @@ function getOrderSnapshot(){
 function saveCurrentOrderToHistory(){
   const snap = getOrderSnapshot();
   if(!snap.ordNum || snap.items.length === 0) return false;
-  const idx = orders.findIndex(o => o.ordNum === snap.ordNum);
+  // Atualiza sempre o registro do pedido que estava sendo editado (editingOrderKey),
+  // mesmo que o número exibido em tela tenha mudado nesse meio tempo. Só cai para
+  // "procurar pelo número atual" quando não há um pedido aberto (ex.: pedido novo).
+  const keyToMatch = editingOrderKey || snap.ordNum;
+  const idx = orders.findIndex(o => o.ordNum === keyToMatch);
   if(idx >= 0) orders[idx] = snap; else orders.unshift(snap);
+  editingOrderKey = snap.ordNum;
   scheduleGithubSave('orders');
   return true;
 }
@@ -3139,6 +3150,7 @@ function loadOrderFromHistory(ordNum){
   if(!confirm(`Abrir o pedido ${ordNum}? Os itens preenchidos na tela atual serão substituídos (baixe o PDF/Excel antes, se precisar).`)) return;
 
   fillOrderFormFromSnapshot(o);
+  editingOrderKey = o.ordNum;
 
   document.getElementById('orderHistoryModalOverlay').classList.remove('open');
 }
@@ -3149,6 +3161,9 @@ function duplicateOrderFromHistory(ordNum){
   if(!confirm(`Duplicar o pedido ${ordNum}? Um novo número de pedido será gerado e os itens preenchidos na tela atual serão substituídos (baixe o PDF/Excel antes, se precisar).`)) return;
 
   fillOrderFormFromSnapshot(o, generateOrderNumber());
+  // É um pedido novo (ainda não existe no histórico com esse número) — não deve
+  // atualizar o pedido original que foi duplicado.
+  editingOrderKey = null;
 
   document.getElementById('orderHistoryModalOverlay').classList.remove('open');
 }
