@@ -1039,6 +1039,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     <button class="ghost" id="btnSaveOrder" title="Salva o pedido no histórico, sem baixar arquivo">💾 Salvar pedido</button>
     <button class="primary" id="btnPdf">Baixar PDF</button>
     <button class="primary" id="btnXlsx">Baixar Excel</button>
+    <button class="ghost" id="btnEmailOrder" title="Abre um rascunho no seu app de e-mail — anexe o PDF/Excel já baixado antes de enviar">📧 Enviar por e-mail</button>
   </div>
 </header>
 
@@ -3153,6 +3154,7 @@ function buildOrderHistoryItemEl(o){
       <button type="button" class="small ghost" data-action="dup">Duplicar pedido</button>
       <button type="button" class="small ghost" data-action="pdf">Baixar PDF</button>
       <button type="button" class="small ghost" data-action="xlsx">Baixar Excel</button>
+      <button type="button" class="small ghost" data-action="email" style="grid-column:1 / -1;">📧 Enviar por e-mail</button>
     </div>
   `;
   item.querySelector('[data-action="open"]').addEventListener('click', () => loadOrderFromHistory(o.ordNum));
@@ -3160,6 +3162,9 @@ function buildOrderHistoryItemEl(o){
   item.querySelector('[data-action="del"]').addEventListener('click', () => deleteOrderFromHistory(o.ordNum));
   item.querySelector('[data-action="pdf"]').addEventListener('click', () => downloadOrderPdf(o));
   item.querySelector('[data-action="xlsx"]').addEventListener('click', () => downloadOrderXlsx(o));
+  item.querySelector('[data-action="email"]').addEventListener('click', () => openOrderEmailDraft({
+    ordNum: o.ordNum, ordDate: o.ordDate, marca: o.marca, totQtd: o.totQtd, totValor: o.totValor
+  }));
   return item;
 }
 
@@ -3383,6 +3388,30 @@ function downloadBlob(buf, filename, mime){
   URL.revokeObjectURL(url);
 }
 
+/* ---------- Enviar pedido por e-mail ----------
+   O app não tem servidor por trás (é um arquivo estático no GitHub Pages), então o envio
+   abre um rascunho no programa de e-mail padrão do usuário (Outlook, Gmail, Mail do
+   celular etc.) já com assunto e corpo preenchidos. Por limitação do próprio navegador,
+   um link "mailto:" não consegue anexar arquivos — por isso o corpo do e-mail lembra a
+   pessoa de anexar o PDF/Excel já baixado antes de enviar. */
+function buildOrderMailtoUrl({ ordNum, ordDate, marca, totQtd, totValor }){
+  const subject = `Pedido ${ordNum || ''}${marca ? ' - ' + marca : ''}`.trim();
+  const bodyLines = [
+    `Segue o pedido${ordNum ? ' nº ' + ordNum : ''}${marca ? ', fornecedor ' + marca : ''}.`,
+    '',
+    `Data do pedido: ${formatDateBR(ordDate) || '-'}`,
+    `Total de peças: ${totQtd || 0}`,
+    `Valor total: ${brl(totValor || 0)}`,
+    '',
+    'Obs.: anexe o PDF/Excel do pedido (já baixado) antes de enviar — este rascunho não anexa arquivos automaticamente.'
+  ];
+  return `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyLines.join('\n'))}`;
+}
+
+function openOrderEmailDraft(data){
+  window.location.href = buildOrderMailtoUrl(data);
+}
+
 document.getElementById('btnXlsx').addEventListener('click', async () => {
   const items = getItemsData();
   if(items.length === 0){ alert('Adicione ao menos um item antes de exportar.'); return; }
@@ -3574,6 +3603,17 @@ document.getElementById('btnPdf').addEventListener('click', () => {
   };
   const doc = buildPdfDoc(data);
   doc.save((data.ordNum || 'pedido') + '.pdf');
+});
+
+document.getElementById('btnEmailOrder').addEventListener('click', () => {
+  const items = getItemsData();
+  if(items.length === 0){ alert('Adicione ao menos um item antes de enviar por e-mail.'); return; }
+  const g = (id) => document.getElementById(id).value.trim();
+  const totQtd = items.reduce((s, it) => s + it.qtd, 0);
+  const totValor = items.reduce((s, it) => s + it.qtd * it.preco, 0);
+  openOrderEmailDraft({
+    ordNum: g('ordNum'), ordDate: g('ordDate'), marca: g('forNome'), totQtd, totValor
+  });
 });
 
 function downloadOrderPdf(o){
