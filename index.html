@@ -860,7 +860,9 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   .order-history-day:last-child .order-history-day-body{border-bottom:none;}
   .order-history-item{padding:10px 12px;border-bottom:1px solid var(--line);}
   .order-history-item:last-child{border-bottom:none;}
-  .ohi-row{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}
+  .ohi-row{display:flex;align-items:flex-start;gap:8px;}
+  .ohi-check{margin-top:3px;flex-shrink:0;}
+  .ohi-text{flex:1;min-width:0;}
   .ohi-title{font-size:13px;font-weight:650;}
   .ohi-title .ohi-marca{font-weight:500;color:var(--ink-soft);}
   .ohi-meta{font-size:12px;color:var(--ink-soft);margin-top:2px;}
@@ -1470,7 +1472,31 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       <input type="text" id="orderHistorySearch" placeholder="Buscar por nº da OC, marca/fornecedor ou produto...">
     </div>
 
+    <div class="table-toolbar" style="justify-content:space-between;align-items:center;">
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft);cursor:pointer;">
+        <input type="checkbox" id="selectAllOrderHistory"> Selecionar todos
+      </label>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span id="orderHistorySelCount" style="font-size:12px;color:var(--ink-soft);">0 selecionado(s)</span>
+        <button type="button" class="small ghost" id="btnDownloadSelectedPdf" disabled>Baixar PDF</button>
+        <button type="button" class="small ghost" id="btnDownloadSelectedXlsx" disabled>Baixar Excel</button>
+      </div>
+    </div>
+
     <div class="company-list" id="orderHistoryListEl"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="historyDownloadModalOverlay">
+  <div class="modal">
+    <button class="modal-close" id="btnCloseHistoryDownloadModal">✕</button>
+    <h3>Baixar pedidos selecionados</h3>
+    <div class="modal-sub">Como você quer baixar os <strong id="historyDownloadCount">0</strong> pedido(s) selecionado(s)?</div>
+
+    <div class="modal-actions" style="flex-direction:column;align-items:stretch;gap:8px;">
+      <button type="button" class="primary" id="btnHistoryDownloadMerged">📎 Arquivo único (todos juntos)</button>
+      <button type="button" class="ghost" id="btnHistoryDownloadSeparate">🗂️ Arquivos separados (um por pedido)</button>
+    </div>
   </div>
 </div>
 
@@ -3337,11 +3363,13 @@ let orderHistoryOpenDays = new Set();
 function buildOrderHistoryItemEl(o){
   const item = document.createElement('div');
   item.className = 'order-history-item';
+  item.dataset.ordnum = o.ordNum || '';
   const dateTimeBits = [formatDateBR(o.ordDate), formatTimeBR(o.savedAt)].filter(Boolean).join(' · ');
   const metaBits = [dateTimeBits, `${o.items.length} item(ns)`, `${o.totQtd} peça(s)`, brl(o.totValor)].filter(Boolean).join(' · ');
   const titleHtml = escapeHtml(o.ordNum || '(sem número)') + (o.marca ? ` <span class="ohi-marca">· ${escapeHtml(o.marca)}</span>` : '');
   item.innerHTML = `
     <div class="ohi-row">
+      <input type="checkbox" class="ohi-check order-history-check" data-ordnum="${escapeHtml(o.ordNum || '')}" title="Selecionar este pedido">
       <div class="ohi-text">
         <div class="ohi-title">${titleHtml}</div>
         <div class="ohi-meta">${escapeHtml(metaBits)}</div>
@@ -3371,6 +3399,7 @@ function renderOrderHistoryList(){
   const listEl = document.getElementById('orderHistoryListEl');
   if(orders.length === 0){
     listEl.innerHTML = '<div class="empty-hint" style="padding:12px;">Nenhum pedido salvo ainda. Assim que você baixar um PDF ou Excel, o pedido aparece aqui.</div>';
+    updateOrderHistorySelectionUI();
     return;
   }
 
@@ -3379,6 +3408,7 @@ function renderOrderHistoryList(){
 
   if(filtered.length === 0){
     listEl.innerHTML = '<div class="empty-hint" style="padding:12px;">Nenhum pedido encontrado para essa busca.</div>';
+    updateOrderHistorySelectionUI();
     return;
   }
 
@@ -3387,6 +3417,7 @@ function renderOrderHistoryList(){
   if(term){
     // busca ativa: lista simples, sem agrupar por dia (facilita achar o pedido buscado)
     filtered.forEach(o => listEl.appendChild(buildOrderHistoryItemEl(o)));
+    updateOrderHistorySelectionUI();
     return;
   }
 
@@ -3428,9 +3459,97 @@ function renderOrderHistoryList(){
     dayWrap.appendChild(body);
     listEl.appendChild(dayWrap);
   });
+
+  updateOrderHistorySelectionUI();
 }
 
 document.getElementById('orderHistorySearch').addEventListener('input', renderOrderHistoryList);
+
+/* ---------- Seleção múltipla no histórico + download em lote (PDF/Excel) ---------- */
+
+function getSelectedHistoryOrders(){
+  const ordNums = Array.from(document.querySelectorAll('#orderHistoryListEl .order-history-check:checked'))
+    .map(cb => cb.dataset.ordnum);
+  // mantém a ordem em que os pedidos aparecem no histórico (mais recente primeiro)
+  return orders.filter(o => ordNums.includes(o.ordNum));
+}
+
+function updateOrderHistorySelectionUI(){
+  const total = document.querySelectorAll('#orderHistoryListEl .order-history-check').length;
+  const checked = document.querySelectorAll('#orderHistoryListEl .order-history-check:checked').length;
+  document.getElementById('orderHistorySelCount').textContent = `${checked} selecionado(s)`;
+  document.getElementById('btnDownloadSelectedPdf').disabled = checked === 0;
+  document.getElementById('btnDownloadSelectedXlsx').disabled = checked === 0;
+  const selectAll = document.getElementById('selectAllOrderHistory');
+  selectAll.checked = total > 0 && checked === total;
+  selectAll.indeterminate = checked > 0 && checked < total;
+}
+
+function clearOrderHistorySelection(){
+  document.querySelectorAll('#orderHistoryListEl .order-history-check').forEach(cb => { cb.checked = false; });
+  updateOrderHistorySelectionUI();
+}
+
+document.getElementById('orderHistoryListEl').addEventListener('change', (e) => {
+  if(e.target.classList.contains('order-history-check')) updateOrderHistorySelectionUI();
+});
+
+document.getElementById('selectAllOrderHistory').addEventListener('change', (e) => {
+  document.querySelectorAll('#orderHistoryListEl .order-history-check').forEach(cb => { cb.checked = e.target.checked; });
+  updateOrderHistorySelectionUI();
+});
+
+let historyDownloadFormat = null; // 'pdf' | 'xlsx'
+
+function openHistoryDownloadModal(format){
+  const selected = getSelectedHistoryOrders();
+  if(selected.length === 0) return;
+  historyDownloadFormat = format;
+  document.getElementById('historyDownloadCount').textContent = String(selected.length);
+  document.getElementById('historyDownloadModalOverlay').classList.add('open');
+}
+
+document.getElementById('btnDownloadSelectedPdf').addEventListener('click', () => openHistoryDownloadModal('pdf'));
+document.getElementById('btnDownloadSelectedXlsx').addEventListener('click', () => openHistoryDownloadModal('xlsx'));
+
+document.getElementById('btnCloseHistoryDownloadModal').addEventListener('click', () => {
+  document.getElementById('historyDownloadModalOverlay').classList.remove('open');
+});
+document.getElementById('historyDownloadModalOverlay').addEventListener('click', (e) => {
+  if(e.target.id === 'historyDownloadModalOverlay'){
+    document.getElementById('historyDownloadModalOverlay').classList.remove('open');
+  }
+});
+
+document.getElementById('btnHistoryDownloadMerged').addEventListener('click', async () => {
+  const selected = getSelectedHistoryOrders();
+  if(selected.length === 0) return;
+  document.getElementById('historyDownloadModalOverlay').classList.remove('open');
+  if(historyDownloadFormat === 'pdf'){
+    const doc = buildMultiOrderPdfDoc(selected.map(buildOrderPdfData));
+    doc.save('pedidos.pdf');
+  } else {
+    const buf = await buildMultiOrderXlsxBuffer(selected.map(buildOrderXlsxData));
+    downloadBlob(buf, 'pedidos.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  }
+  clearOrderHistorySelection();
+});
+
+document.getElementById('btnHistoryDownloadSeparate').addEventListener('click', async () => {
+  const selected = getSelectedHistoryOrders();
+  if(selected.length === 0) return;
+  document.getElementById('historyDownloadModalOverlay').classList.remove('open');
+  for(const o of selected){
+    if(historyDownloadFormat === 'pdf'){
+      downloadOrderPdf(o);
+    } else {
+      await downloadOrderXlsx(o);
+    }
+    // pequeno intervalo entre downloads pra evitar que o navegador bloqueie downloads múltiplos automáticos
+    await new Promise(r => setTimeout(r, 350));
+  }
+  clearOrderHistorySelection();
+});
 
 function fillOrderFormFromSnapshot(o, ordNumOverride){
   document.getElementById('ordNum').value = ordNumOverride != null ? ordNumOverride : (o.ordNum || '');
@@ -3548,15 +3667,7 @@ function composeItemSku(it){
   return [it.ref, it.cor].filter(Boolean).join(' - ');
 }
 
-async function buildXlsxBuffer(data){
-  // data: {ordNum, marca, prazoPagto, dataFat (iso "yyyy-mm-dd" ou null), obsGerais,
-  //        items: [{prod, ref, cor, tam, qtd, preco, triangular, etiquetagem, cnpjInicial (texto), cnpjFinal (texto), obs, responsavel}]}
-  const dataFatDate = data.dataFat ? new Date(data.dataFat + 'T00:00:00') : null;
-
-  const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet('Pedido');
-  ws.columns = XLSX_COL_WIDTHS.map(w => w ? { width: w } : {});
-
+function addXlsxHeaderRow(ws){
   const headerRow = ws.addRow(XLSX_HEADERS);
   headerRow.eachCell((cell, colNumber) => {
     cell.font = { name: 'Roboto Condensed', bold: colNumber !== 1, color: { argb: XLSX_HEADER_TEXT } };
@@ -3565,6 +3676,16 @@ async function buildXlsxBuffer(data){
     const side = { style: 'dotted', color: { argb: XLSX_HEADER_BORDER_COLOR } };
     cell.border = { top: side, left: side, right: side, bottom: side };
   });
+}
+
+// Adiciona as linhas de itens de UM pedido à planilha — usado tanto pro Excel de um único
+// pedido quanto pro Excel combinado de vários pedidos selecionados no histórico (mesma
+// aba, um pedido "empilhado" depois do outro, cada linha já identificada pela própria
+// coluna "Número Ordem Compra").
+function addOrderRowsToSheet(ws, data){
+  // data: {ordNum, marca, prazoPagto, dataFat (iso "yyyy-mm-dd" ou null), obsGerais,
+  //        items: [{prod, ref, cor, tam, qtd, preco, triangular, etiquetagem, cnpjInicial (texto), cnpjFinal (texto), obs, responsavel}]}
+  const dataFatDate = data.dataFat ? new Date(data.dataFat + 'T00:00:00') : null;
 
   data.items.forEach(it => {
     const descricao = composeItemDescricao(it);
@@ -3588,7 +3709,25 @@ async function buildXlsxBuffer(data){
       else if(XLSX_TEXT_COLS.has(idx)) cell.numFmt = '@';
     });
   });
+}
 
+async function buildXlsxBuffer(data){
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Pedido');
+  ws.columns = XLSX_COL_WIDTHS.map(w => w ? { width: w } : {});
+  addXlsxHeaderRow(ws);
+  addOrderRowsToSheet(ws, data);
+  return await wb.xlsx.writeBuffer();
+}
+
+// Excel combinado de vários pedidos (baixados juntos do histórico) — uma única aba, um
+// cabeçalho só, com as linhas de todos os pedidos selecionados empilhadas em sequência.
+async function buildMultiOrderXlsxBuffer(dataList){
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Pedidos');
+  ws.columns = XLSX_COL_WIDTHS.map(w => w ? { width: w } : {});
+  addXlsxHeaderRow(ws);
+  dataList.forEach(data => addOrderRowsToSheet(ws, data));
   return await wb.xlsx.writeBuffer();
 }
 
@@ -3646,13 +3785,16 @@ document.getElementById('btnXlsx').addEventListener('click', async () => {
   downloadBlob(buf, (data.ordNum || 'pedido') + '.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 });
 
-async function downloadOrderXlsx(o){
+// Converte um pedido salvo no histórico (com CNPJs guardados como ID cru) no formato
+// {ordNum, marca, prazoPagto, dataFat, obsGerais, items} esperado por buildXlsxBuffer —
+// usado tanto pro download individual quanto pro download em lote (único/separados).
+function buildOrderXlsxData(o){
   const items = (o.items || []).map(it => ({
     ...it,
     cnpjInicial: companyLabel(it.cnpjInicial),
     cnpjFinal: companyLabel(it.cnpjFinal)
   }));
-  const data = {
+  return {
     ordNum: o.ordNum,
     marca: o.marca,
     prazoPagto: o.prazoPagto || '-',
@@ -3660,17 +3802,25 @@ async function downloadOrderXlsx(o){
     obsGerais: o.obsGerais,
     items
   };
+}
+
+async function downloadOrderXlsx(o){
+  const data = buildOrderXlsxData(o);
   const buf = await buildXlsxBuffer(data);
   downloadBlob(buf, (data.ordNum || 'pedido') + '.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 }
 
 /* ---------- Exportar PDF ---------- */
 
-function buildPdfDoc(data){
+// Desenha UM pedido no documento PDF passado (a partir da página/posição atual do doc).
+// Usado tanto pro PDF de um único pedido (buildPdfDoc cria o doc e chama isso uma vez)
+// quanto pro PDF combinado de vários pedidos do histórico (buildMultiOrderPdfDoc chama
+// isso várias vezes no mesmo doc, com doc.addPage() entre um pedido e outro).
+function buildPdfDoc(data, existingDoc){
   // data: {ordNum, ordDate (iso), prazoPagto, dataFat (iso), obsGerais, company, marca,
   //        items: [{prod, ref, cor, tam, qtd, preco, sub, obs, triangular, cnpjFinal (texto "nome | cnpj | cidade-uf")}]}
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({unit:'pt', format:'a4'});
+  const doc = existingDoc || new jsPDF({unit:'pt', format:'a4'});
   const pageWidth = doc.internal.pageSize.getWidth();
   let y = 40;
 
@@ -3811,6 +3961,18 @@ function buildPdfDoc(data){
   return doc;
 }
 
+// PDF combinado de vários pedidos (baixados juntos do histórico) — um único arquivo,
+// cada pedido começando em uma página nova.
+function buildMultiOrderPdfDoc(dataList){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'pt', format:'a4'});
+  dataList.forEach((data, idx) => {
+    if(idx > 0) doc.addPage();
+    buildPdfDoc(data, doc);
+  });
+  return doc;
+}
+
 document.getElementById('btnPdf').addEventListener('click', () => {
   const items = getItemsData();
   if(items.length === 0){ alert('Adicione ao menos um item antes de exportar.'); return; }
@@ -3842,12 +4004,14 @@ document.getElementById('btnEmailOrder').addEventListener('click', () => {
   });
 });
 
-function downloadOrderPdf(o){
+// Converte um pedido salvo no histórico no formato esperado por buildPdfDoc — usado tanto
+// pro download individual quanto pro download em lote (único/separados).
+function buildOrderPdfData(o){
   const company = o.companyId ? (companies.find(c => String(c.id) === String(o.companyId)) || null) : null;
   // o.items vem do histórico com o CNPJ Final Remessa salvo como ID cru — resolve para o
   // texto (nome | CNPJ | cidade-UF), igual ao que já é feito para o Excel.
   const items = (o.items || []).map(it => ({ ...it, sub: (it.qtd || 0) * (it.preco || 0), cnpjFinal: companyLabel(it.cnpjFinal) }));
-  const data = {
+  return {
     ordNum: o.ordNum,
     ordDate: o.ordDate,
     prazoPagto: o.prazoPagto || '-',
@@ -3857,6 +4021,10 @@ function downloadOrderPdf(o){
     marca: o.marca,
     items
   };
+}
+
+function downloadOrderPdf(o){
+  const data = buildOrderPdfData(o);
   const doc = buildPdfDoc(data);
   doc.save((data.ordNum || 'pedido') + '.pdf');
 }
