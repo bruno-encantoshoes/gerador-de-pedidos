@@ -3304,19 +3304,24 @@ async function downloadOrderXlsx(o){
 
 function buildPdfDoc(data){
   // data: {ordNum, ordDate (iso), prazoPagto, dataFat (iso), obsGerais, company, marca,
-  //        items: [{prod, ref, cor, tam, qtd, preco, sub, obs, triangular, cnpjFinal (texto)}]}
+  //        items: [{prod, ref, cor, tam, qtd, preco, sub, obs, triangular, cnpjFinal (texto "nome | cnpj | cidade-uf")}]}
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({unit:'pt', format:'a4'});
   const pageWidth = doc.internal.pageSize.getWidth();
   let y = 40;
+
+  const composeDescricao = (it) => [it.prod, it.cor, it.tam].filter(Boolean).join(' - ');
 
   // Operação triangular é tratada como um dado do PEDIDO (não de cada item): se qualquer
   // item estiver marcado como "Sim", o pedido inteiro é sinalizado logo no topo, ao lado
   // do número da ordem de compra, de forma destacada — em vez de repetir numa coluna da
   // tabela, onde passava despercebido.
   const hasTriangular = data.items.some(it => String(it.triangular || '').trim().toLowerCase() === 'sim');
-  const cnpjsFinal = hasTriangular
+  // cnpjFinal já vem como texto "nome | cnpj | cidade-uf" (mesmo formato usado no resto do
+  // app) — separa de volta em linhas pra exibir no mesmo padrão do bloco CNPJ de Faturamento.
+  const cnpjFinalBlocks = hasTriangular
     ? [...new Set(data.items.filter(it => String(it.triangular || '').trim().toLowerCase() === 'sim' && it.cnpjFinal).map(it => it.cnpjFinal))]
+        .map(label => label.split(' | ').filter(Boolean))
     : [];
 
   doc.setFont('helvetica','bold');
@@ -3326,9 +3331,10 @@ function buildPdfDoc(data){
 
   doc.setFontSize(10);
   doc.setFont('helvetica','normal');
-  doc.text(`Ordem de compra: ${data.ordNum}    Data: ${data.ordDate}`, 40, y);
+  doc.text(`Ordem de compra: ${data.ordNum}    Data: ${formatDateBR(data.ordDate) || data.ordDate}`, 40, y);
 
-  // Selo "OPERAÇÃO TRIANGULAR" alinhado à direita, na mesma linha da ordem de compra.
+  // Selo "OPERAÇÃO TRIANGULAR" alinhado à direita, na mesma linha da ordem de compra —
+  // paleta preto e branco: preto sólido quando SIM (chama atenção), cinza claro quando NÃO.
   const badgeLabel = `OPERAÇÃO TRIANGULAR: ${hasTriangular ? 'SIM' : 'NÃO'}`;
   doc.setFont('helvetica','bold');
   doc.setFontSize(9);
@@ -3337,11 +3343,11 @@ function buildPdfDoc(data){
   const badgeX = pageWidth - 40 - badgeW;
   const badgeY = y - badgeH + 4;
   if(hasTriangular){
-    doc.setFillColor(196, 68, 42);   // vermelho/laranja — chama atenção
+    doc.setFillColor(0, 0, 0);
     doc.setTextColor(255, 255, 255);
   } else {
-    doc.setFillColor(231, 242, 236); // verde suave — informativo, sem alarde
-    doc.setTextColor(28, 36, 48);
+    doc.setFillColor(225, 225, 225);
+    doc.setTextColor(60, 60, 60);
   }
   doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 3, 3, 'F');
   doc.text(badgeLabel, badgeX + badgePadX, badgeY + badgeH - 5);
@@ -3351,28 +3357,31 @@ function buildPdfDoc(data){
   y += 14;
 
   doc.text(`Prazo de pagamento: ${data.prazoPagto || '-'}    Data de faturamento: ${formatDateBR(data.dataFat) || '-'}`, 40, y);
-  y += 14;
+  y += 22;
 
+  // Bloco de colunas: CNPJ de Faturamento / Fornecedor / (CNPJ Final Remessa, só quando
+  // há operação triangular) — todos no mesmo padrão (rótulo em negrito + linhas soltas).
+  const blocks = [
+    { label: 'CNPJ de Faturamento', lines: data.company ? [data.company.nome, data.company.cnpj, data.company.cidadeUf].filter(Boolean) : [] },
+    { label: 'Fornecedor', lines: [data.marca].filter(Boolean) }
+  ];
   if(hasTriangular){
-    doc.setFont('helvetica','bold');
-    doc.text(`CNPJ Final Remessa: ${cnpjsFinal.length ? cnpjsFinal.join('  |  ') : '-'}`, 40, y, {maxWidth: pageWidth - 80});
-    doc.setFont('helvetica','normal');
-    y += 14;
+    blocks.push({
+      label: 'CNPJ Final Remessa',
+      lines: cnpjFinalBlocks.length ? cnpjFinalBlocks.flatMap((b, i) => i === 0 ? b : ['', ...b]) : ['-']
+    });
   }
-  y += 8;
-
-  const colX = 40, colW = (pageWidth - 80 - 20) / 2;
+  const colGap = 20, colX0 = 40;
+  const colW = (pageWidth - 80 - colGap * (blocks.length - 1)) / blocks.length;
   doc.setFont('helvetica','bold');
-  doc.text('CNPJ de Faturamento', colX, y);
-  doc.text('Fornecedor', colX + colW + 20, y);
+  blocks.forEach((b, i) => doc.text(b.label, colX0 + i * (colW + colGap), y, {maxWidth: colW}));
   y += 14;
   doc.setFont('helvetica','normal');
-  const empLines = data.company ? [data.company.nome, data.company.cnpj, data.company.cidadeUf].filter(Boolean) : [];
-  const forLines = [data.marca].filter(Boolean);
-  const maxLines = Math.max(empLines.length, forLines.length);
+  const maxLines = Math.max(...blocks.map(b => b.lines.length));
   for(let i=0;i<maxLines;i++){
-    if(empLines[i]) doc.text(empLines[i], colX, y, {maxWidth: colW});
-    if(forLines[i]) doc.text(forLines[i], colX + colW + 20, y, {maxWidth: colW});
+    blocks.forEach((b, bi) => {
+      if(b.lines[i]) doc.text(b.lines[i], colX0 + bi * (colW + colGap), y, {maxWidth: colW});
+    });
     y += 13;
   }
   y += 10;
@@ -3380,35 +3389,48 @@ function buildPdfDoc(data){
   // Mesma composição de "Descrição do Produto" e "SKU" usada no Excel: produto/referência
   // combinados com cor e tamanho num único texto, em vez de colunas separadas.
   const body = data.items.map(it => {
-    const descricao = [it.prod, it.cor, it.tam].filter(Boolean).join(' - ');
     const sku = [it.ref, it.cor, it.tam].filter(Boolean).join(' - ');
-    return [descricao, sku, String(it.qtd), brl(it.preco), brl(it.sub), it.obs];
+    return [composeDescricao(it), sku, String(it.qtd), brl(it.preco), brl(it.sub)];
   });
   const totQtd = data.items.reduce((s,it)=>s+it.qtd,0);
   const totVal = data.items.reduce((s,it)=>s+it.sub,0);
 
   doc.autoTable({
     startY: y,
-    head: [['Descrição do Produto','SKU','Qtd','Preço Unit.','Subtotal','Obs.']],
+    head: [['Descrição do Produto','SKU','Qtd','Preço Unit.','Subtotal']],
     body: body,
-    foot: [['', '', String(totQtd), 'Total', brl(totVal), '']],
+    foot: [['', '', String(totQtd), 'Total', brl(totVal)]],
     styles: {fontSize:9, cellPadding:5},
-    headStyles: {fillColor:[47,111,79], textColor:255, fontStyle:'bold'},
-    footStyles: {fillColor:[231,242,236], textColor:[28,36,48], fontStyle:'bold'},
+    headStyles: {fillColor:[0,0,0], textColor:255, fontStyle:'bold'},
+    footStyles: {fillColor:[230,230,230], textColor:[0,0,0], fontStyle:'bold'},
     margin: {left:40, right:40},
     columnStyles: {
       2: {halign:'right'}, 3: {halign:'right'}, 4: {halign:'right'}
     }
   });
 
+  // Coluna de Obs. saiu da tabela — observações de itens (quando houver) e as gerais do
+  // pedido ficam juntas no rodapé do PDF.
   let finalY = doc.lastAutoTable.finalY + 20;
-  if(data.obsGerais){
-    if(finalY > doc.internal.pageSize.getHeight() - 80){ doc.addPage(); finalY = 40; }
+  const itemObsLines = data.items.filter(it => it.obs).map(it => `${composeDescricao(it)}: ${it.obs}`);
+  if(data.obsGerais || itemObsLines.length){
+    const pageHeight = doc.internal.pageSize.getHeight();
+    if(finalY > pageHeight - 80){ doc.addPage(); finalY = 40; }
     doc.setFont('helvetica','bold');
     doc.setFontSize(10);
-    doc.text('Observações Gerais:', 40, finalY);
+    doc.text('Observações:', 40, finalY);
+    finalY += 14;
     doc.setFont('helvetica','normal');
-    doc.text(data.obsGerais, 40, finalY + 14, {maxWidth: pageWidth - 80});
+    if(data.obsGerais){
+      doc.text(data.obsGerais, 40, finalY, {maxWidth: pageWidth - 80});
+      finalY += 14 * (doc.splitTextToSize(data.obsGerais, pageWidth - 80).length);
+    }
+    itemObsLines.forEach(line => {
+      if(finalY > pageHeight - 40){ doc.addPage(); finalY = 40; }
+      const wrapped = doc.splitTextToSize(`• ${line}`, pageWidth - 80);
+      doc.text(wrapped, 40, finalY);
+      finalY += 14 * wrapped.length;
+    });
   }
 
   return doc;
