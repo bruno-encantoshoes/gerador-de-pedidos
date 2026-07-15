@@ -1681,7 +1681,8 @@ function buildCompanyOptionsHTML(selectedId){
   let html = '<option value="">—</option>';
   companies.forEach(c => {
     const sel = String(c.id) === String(selectedId) ? ' selected' : '';
-    html += `<option value="${c.id}"${sel}>${escapeHtml(c.nome || '(sem nome)')}${c.cnpj ? ' — ' + escapeHtml(c.cnpj) : ''}</option>`;
+    const label = [c.nome || '(sem nome)', c.cnpj || 'sem CNPJ', c.cidadeUf, c.tipo].filter(Boolean).join(' | ');
+    html += `<option value="${c.id}"${sel}>${escapeHtml(label)}</option>`;
   });
   return html;
 }
@@ -3531,9 +3532,9 @@ const SEM_CADASTRO = 'SEM CADASTRO';
 function isSemCadastro(ref){
   return String(ref || '').trim().toUpperCase() === SEM_CADASTRO;
 }
-// Descrição do Produto: sempre produto + cor (sem o tamanho).
+// Descrição do Produto: produto + cor + tamanho.
 function composeItemDescricao(it){
-  return [it.prod, it.cor].filter(Boolean).join(' - ');
+  return [it.prod, it.cor, it.tam].filter(Boolean).join(' - ');
 }
 // SKU: "SEM CADASTRO" quando não há referência cadastrada; senão, referência + cor.
 function composeItemSku(it){
@@ -3747,7 +3748,7 @@ function buildPdfDoc(data){
   }
   y += 10;
 
-  // Mesma composição de "Descrição do Produto" e "SKU" usada no Excel: produto + cor, e
+  // Mesma composição de "Descrição do Produto" e "SKU" usada no Excel: produto + cor + tamanho, e
   // referência + cor (sem o tamanho), respectivamente.
   const head = allSemCadastro
     ? ['Descrição do Produto','Qtd','Preço Unit.','Subtotal']
