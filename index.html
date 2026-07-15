@@ -3531,9 +3531,9 @@ const SEM_CADASTRO = 'SEM CADASTRO';
 function isSemCadastro(ref){
   return String(ref || '').trim().toUpperCase() === SEM_CADASTRO;
 }
-// Descrição do Produto: produto + cor + tamanho.
+// Descrição do Produto: sempre produto + cor (sem o tamanho).
 function composeItemDescricao(it){
-  return [it.prod, it.cor, it.tam].filter(Boolean).join(' - ');
+  return [it.prod, it.cor].filter(Boolean).join(' - ');
 }
 // SKU: "SEM CADASTRO" quando não há referência cadastrada; senão, referência + cor.
 function composeItemSku(it){
@@ -3747,7 +3747,7 @@ function buildPdfDoc(data){
   }
   y += 10;
 
-  // Mesma composição de "Descrição do Produto" e "SKU" usada no Excel: produto + cor + tamanho, e
+  // Mesma composição de "Descrição do Produto" e "SKU" usada no Excel: produto + cor, e
   // referência + cor (sem o tamanho), respectivamente.
   const head = allSemCadastro
     ? ['Descrição do Produto','Qtd','Preço Unit.','Subtotal']
