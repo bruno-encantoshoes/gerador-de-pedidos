@@ -1214,7 +1214,8 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     <div class="add-row-bar">
       <button class="primary" id="btnAddRow">+ Adicionar item</button>
       <button class="ghost" id="btnAdd5">+ Adicionar 5 linhas</button>
-      <button type="button" class="small danger-text" id="btnDeleteSelected" disabled style="margin-left:auto;">Excluir selecionados</button>
+      <button type="button" class="small ghost" id="btnBulkEdit" disabled style="margin-left:auto;">✏️ Editar em massa</button>
+      <button type="button" class="small danger-text" id="btnDeleteSelected" disabled>Excluir selecionados</button>
     </div>
     <div class="hint">Dica: aperte <b>Tab</b> para passar pro próximo campo. No último campo da linha, aperte <b>Enter</b> para criar a próxima linha automaticamente.</div>
   </div>
@@ -1341,6 +1342,41 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     </div>
 
     <div class="hint">Suas proporções já ficam salvas automaticamente no GitHub.</div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="bulkEditModalOverlay">
+  <div class="modal">
+    <button class="modal-close" id="btnCloseBulkEditModal">✕</button>
+    <h3>Editar em massa</h3>
+    <div class="modal-sub">Aplica um novo valor a uma coluna, de uma vez, em todos os itens marcados na tabela (<span id="bulkEditCount">0</span> selecionado(s)).</div>
+
+    <div class="field">
+      <label>Coluna</label>
+      <select id="bulkEditField">
+        <option value="prod">Produto / Descrição</option>
+        <option value="ref">Referência / SKU</option>
+        <option value="cor">Cor</option>
+        <option value="tam">Tam. / Numeração</option>
+        <option value="qtd">Qtd</option>
+        <option value="preco">Preço Unit. (R$)</option>
+        <option value="triangular">Op. Triangular</option>
+        <option value="etiquetagem">Etiquetagem</option>
+        <option value="cnpjInicial">CNPJ Inicial Faturamento</option>
+        <option value="cnpjFinal">CNPJ Final Remessa</option>
+        <option value="obs">Observações</option>
+        <option value="responsavel">Responsável Pedido</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Novo valor</label>
+      <div id="bulkEditValueWrap"><input type="text" id="bulkEditValueInput" placeholder="Novo valor"></div>
+    </div>
+
+    <div class="modal-actions">
+      <button type="button" class="primary" id="btnApplyBulkEdit">Aplicar aos selecionados</button>
+    </div>
   </div>
 </div>
 
@@ -1685,6 +1721,9 @@ function updateBulkDeleteState(){
   const btn = document.getElementById('btnDeleteSelected');
   btn.disabled = checkedCount === 0;
   btn.textContent = checkedCount > 0 ? `Excluir selecionados (${checkedCount})` : 'Excluir selecionados';
+  const bulkEditBtn = document.getElementById('btnBulkEdit');
+  bulkEditBtn.disabled = checkedCount === 0;
+  bulkEditBtn.textContent = checkedCount > 0 ? `✏️ Editar em massa (${checkedCount})` : '✏️ Editar em massa';
   const selectAll = document.getElementById('selectAllItems');
   if(allChecks.length === 0 || checkedCount === 0){
     selectAll.checked = false;
@@ -1712,6 +1751,77 @@ document.getElementById('btnDeleteSelected').addEventListener('click', () => {
   recalcTotals();
   updateCount();
   updateBulkDeleteState();
+});
+
+/* ---------- Editar em massa (aplica um valor a uma coluna em vários itens de uma vez) ---------- */
+
+const BULK_EDIT_LABELS = {
+  prod: 'Produto / Descrição', ref: 'Referência / SKU', cor: 'Cor', tam: 'Tam. / Numeração',
+  qtd: 'Qtd', preco: 'Preço Unit. (R$)', triangular: 'Op. Triangular', etiquetagem: 'Etiquetagem',
+  cnpjInicial: 'CNPJ Inicial Faturamento', cnpjFinal: 'CNPJ Final Remessa',
+  obs: 'Observações', responsavel: 'Responsável Pedido'
+};
+
+function renderBulkEditValueInput(field){
+  const wrap = document.getElementById('bulkEditValueWrap');
+  if(field === 'qtd'){
+    wrap.innerHTML = '<input type="number" min="0" step="1" id="bulkEditValueInput" value="0">';
+  } else if(field === 'preco'){
+    wrap.innerHTML = '<input type="text" inputmode="decimal" class="currency-input" id="bulkEditValueInput" value="R$ 0,00">';
+    attachCurrencyMask(document.getElementById('bulkEditValueInput'));
+  } else if(field === 'triangular' || field === 'etiquetagem'){
+    const def = field === 'triangular' ? 'Não' : 'Sim';
+    wrap.innerHTML = `<select id="bulkEditValueInput">
+        <option value="Não"${def === 'Não' ? ' selected' : ''}>Não</option>
+        <option value="Sim"${def === 'Sim' ? ' selected' : ''}>Sim</option>
+      </select>`;
+  } else if(field === 'cnpjInicial' || field === 'cnpjFinal'){
+    wrap.innerHTML = `<select id="bulkEditValueInput">${buildCompanyOptionsHTML('')}</select>`;
+  } else {
+    wrap.innerHTML = '<input type="text" id="bulkEditValueInput" placeholder="Novo valor">';
+  }
+}
+
+document.getElementById('btnBulkEdit').addEventListener('click', () => {
+  const checkedCount = tbody.querySelectorAll('.row-check:checked').length;
+  if(checkedCount === 0) return;
+  document.getElementById('bulkEditCount').textContent = String(checkedCount);
+  document.getElementById('bulkEditField').selectedIndex = 0;
+  renderBulkEditValueInput('prod');
+  document.getElementById('bulkEditModalOverlay').classList.add('open');
+});
+
+document.getElementById('bulkEditField').addEventListener('change', (e) => {
+  renderBulkEditValueInput(e.target.value);
+});
+
+document.getElementById('btnCloseBulkEditModal').addEventListener('click', () => {
+  document.getElementById('bulkEditModalOverlay').classList.remove('open');
+});
+document.getElementById('bulkEditModalOverlay').addEventListener('click', (e) => {
+  if(e.target.id === 'bulkEditModalOverlay'){
+    document.getElementById('bulkEditModalOverlay').classList.remove('open');
+  }
+});
+
+document.getElementById('btnApplyBulkEdit').addEventListener('click', () => {
+  const checkedRows = Array.from(tbody.querySelectorAll('.row-check:checked')).map(cb => cb.closest('tr'));
+  if(checkedRows.length === 0) return;
+  const field = document.getElementById('bulkEditField').value;
+  const valEl = document.getElementById('bulkEditValueInput');
+  const rawVal = valEl.value;
+  const displayVal = valEl.tagName === 'SELECT' ? valEl.selectedOptions[0].textContent : rawVal;
+  const fieldLabel = BULK_EDIT_LABELS[field] || field;
+  if(!confirm(`Aplicar "${fieldLabel}" = "${displayVal || '(vazio)'}" a ${checkedRows.length} item(ns) selecionado(s)? Isso substitui o valor atual desse campo nesses itens.`)) return;
+
+  checkedRows.forEach(tr => {
+    const input = tr.querySelector(`[data-field="${field}"]`);
+    if(!input) return;
+    input.value = rawVal;
+    if(field === 'qtd' || field === 'preco') recalcRow(tr);
+  });
+  recalcTotals();
+  document.getElementById('bulkEditModalOverlay').classList.remove('open');
 });
 
 function recalcRow(tr){
