@@ -3359,11 +3359,11 @@ function buildPdfDoc(data){
   doc.text(`Prazo de pagamento: ${data.prazoPagto || '-'}    Data de faturamento: ${formatDateBR(data.dataFat) || '-'}`, 40, y);
   y += 22;
 
-  // Bloco de colunas: CNPJ de Faturamento / Fornecedor / (CNPJ Final Remessa, só quando
-  // há operação triangular) — todos no mesmo padrão (rótulo em negrito + linhas soltas).
+  // Bloco de colunas: CNPJ de Faturamento / (CNPJ Final Remessa, só quando há operação
+  // triangular) / Fornecedor — Fornecedor sempre por último, nunca no meio — todos no
+  // mesmo padrão (rótulo em negrito + linhas soltas).
   const blocks = [
-    { label: 'CNPJ de Faturamento', lines: data.company ? [data.company.nome, data.company.cnpj, data.company.cidadeUf].filter(Boolean) : [] },
-    { label: 'Fornecedor', lines: [data.marca].filter(Boolean) }
+    { label: 'CNPJ de Faturamento', lines: data.company ? [data.company.nome, data.company.cnpj, data.company.cidadeUf].filter(Boolean) : [] }
   ];
   if(hasTriangular){
     blocks.push({
@@ -3371,6 +3371,7 @@ function buildPdfDoc(data){
       lines: cnpjFinalBlocks.length ? cnpjFinalBlocks.flatMap((b, i) => i === 0 ? b : ['', ...b]) : ['-']
     });
   }
+  blocks.push({ label: 'Fornecedor', lines: [data.marca].filter(Boolean) });
   const colGap = 20, colX0 = 40;
   const colW = (pageWidth - 80 - colGap * (blocks.length - 1)) / blocks.length;
   doc.setFont('helvetica','bold');
