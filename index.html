@@ -1107,6 +1107,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       <span class="h2-actions">
         <button type="button" class="small" id="btnManageGrades">Cadastrar grades</button>
         <button type="button" class="small" id="btnManageProportions">Cadastrar proporção</button>
+        <button type="button" class="small" id="btnManageCompradores">Cadastrar comprador</button>
       </span>
     </h2>
     <div class="note-banner">Os campos de CNPJ usam as empresas cadastradas em "Gerenciar empresas".</div>
@@ -1141,7 +1142,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       </div>
       <div class="field" style="width:150px;">
         <label>Referência/SKU</label>
-        <input type="text" id="applyGradeRef" placeholder="opcional">
+        <input type="text" id="applyGradeRef" placeholder="SEM CADASTRO" value="SEM CADASTRO">
       </div>
       <div class="field" style="width:130px;">
         <label>Cor</label>
@@ -1175,7 +1176,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       </div>
       <div class="field" style="width:160px;">
         <label>Responsável Pedido</label>
-        <input type="text" id="applyResponsavel" placeholder="opcional">
+        <select id="applyResponsavel"></select>
       </div>
       <button type="button" class="primary" id="btnInsertLeva">➕ Inserir dados ao pedido</button>
       <button type="button" class="ghost" id="btnCancelEditLeva" style="display:none;">Cancelar edição</button>
@@ -1253,6 +1254,12 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         <div class="field" style="grid-column:1/-1;"><label>Nome / Razão Social</label><input type="text" id="cfNome"></div>
         <div class="field"><label>CNPJ / CPF</label><input type="text" id="cfDoc" placeholder="00.000.000/0000-00"></div>
         <div class="field"><label>Cidade</label><input type="text" id="cfCidadeUf" placeholder="Ex: Duque de Caxias"></div>
+        <div class="field"><label>Tipo</label>
+          <select id="cfTipo">
+            <option value="Próprio">Próprio</option>
+            <option value="Mercado Livre">Mercado Livre</option>
+          </select>
+        </div>
       </div>
       <div class="modal-actions">
         <button class="primary" id="btnSaveCompany">Salvar empresa</button>
@@ -1408,6 +1415,27 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     </div>
 
     <div class="hint">Seus fornecedores já ficam salvos automaticamente no GitHub.</div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="compradorModalOverlay">
+  <div class="modal">
+    <button class="modal-close" id="btnCloseCompradorModal">✕</button>
+    <h3>Meus Compradores</h3>
+    <div class="modal-sub">Cadastre quem costuma ser o responsável pelo pedido. Depois é só selecionar em cada item.</div>
+
+    <div class="company-list" id="compradorListEl"></div>
+
+    <div id="compradorForm">
+      <input type="hidden" id="cpId">
+      <div class="field"><label>Comprador</label><input type="text" id="cpNome" placeholder="Nome do comprador"></div>
+      <div class="modal-actions">
+        <button class="primary" id="btnSaveComprador">Salvar comprador</button>
+        <button class="ghost" id="btnCancelEditComprador" style="display:none;">Cancelar edição</button>
+      </div>
+    </div>
+
+    <div class="hint">Seus compradores já ficam salvos automaticamente no GitHub.</div>
   </div>
 </div>
 
@@ -1570,6 +1598,7 @@ async function doGithubSave(key){
     else if(key === 'proportions') await ghWriteFile('proportions.json', {proportions}, 'Atualiza proporções');
     else if(key === 'marcas') await ghWriteFile('marcas.json', {marcas: marcasFornecedor}, 'Atualiza marcas/fornecedores');
     else if(key === 'prazos') await ghWriteFile('prazos.json', {prazos: prazosPagto}, 'Atualiza prazos de pagamento');
+    else if(key === 'compradores') await ghWriteFile('compradores.json', {compradores}, 'Atualiza compradores');
     else if(key === 'orders') await ghWriteFile('orders.json', {orders}, 'Atualiza histórico de pedidos');
     setSyncStatus('Dados salvos ✓', 'ok');
   } catch(err){
@@ -1687,7 +1716,7 @@ function addItem(focusFirst){
     <td class="col-cnpj"><select data-field="cnpjInicial">${buildCompanyOptionsHTML('')}</select></td>
     <td class="col-cnpj"><select data-field="cnpjFinal">${buildCompanyOptionsHTML('')}</select></td>
     <td class="col-obs"><input type="text" data-field="obs" placeholder="opcional"></td>
-    <td class="col-resp"><input type="text" data-field="responsavel" placeholder="opcional" class="last-field"></td>
+    <td class="col-resp"><select data-field="responsavel" class="last-field">${buildCompradorOptionsHTML('')}</select></td>
     <td class="col-rm"><button class="danger-text" title="Remover item">✕</button></td>
   `;
   tbody.appendChild(tr);
@@ -1862,7 +1891,7 @@ function updateCount(){
 function companyLabel(id){
   const c = companies.find(x => String(x.id) === String(id));
   if(!c) return '';
-  return [c.nome, c.cnpj, c.cidadeUf].filter(Boolean).join(' | ');
+  return [c.nome, c.cnpj, c.cidadeUf, c.tipo].filter(Boolean).join(' | ');
 }
 
 function formatDateBR(iso){
@@ -2167,6 +2196,149 @@ document.getElementById('marcaModalOverlay').addEventListener('click', (e) => {
   }
 });
 
+/* ---------- Compradores (Responsável Pedido) ---------- */
+
+let compradores = [];
+let compradorSeq = 0;
+let editingCompradorId = null;
+
+const SEED_COMPRADORES = [
+  { nome: 'Bruno (Comprador)' },
+];
+
+function seedCompradoresIfMissing(){
+  const existing = new Set(compradores.map(c => c.nome));
+  let added = 0;
+  SEED_COMPRADORES.forEach(sc => {
+    if(existing.has(sc.nome)) return;
+    compradorSeq++;
+    compradores.push({ id: compradorSeq, nome: sc.nome });
+    existing.add(sc.nome);
+    added++;
+  });
+  return added;
+}
+
+/* Igual a buildCompanyOptionsHTML, mas o valor da option é o próprio nome (mesmo padrão
+   já usado pra Marca/Fornecedor) — assim um "Responsável Pedido" digitado antes desse
+   cadastro existir continua aparecendo, só que sem casar com nenhuma opção. */
+function buildCompradorOptionsHTML(selectedNome){
+  let html = '<option value="">—</option>';
+  compradores.forEach(c => {
+    const sel = c.nome === selectedNome ? ' selected' : '';
+    html += `<option value="${escapeHtml(c.nome)}"${sel}>${escapeHtml(c.nome)}</option>`;
+  });
+  return html;
+}
+
+function renderCompradorSelect(){
+  const sel = document.getElementById('applyResponsavel');
+  const prevValue = sel.value;
+  sel.innerHTML = buildCompradorOptionsHTML(prevValue);
+}
+
+function refreshItemCompradorDropdowns(){
+  tbody.querySelectorAll('tr').forEach(tr => {
+    const sel = tr.querySelector('[data-field="responsavel"]');
+    if(!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = buildCompradorOptionsHTML(prev);
+  });
+}
+
+function renderCompradorManageList(){
+  const listEl = document.getElementById('compradorListEl');
+  if(compradores.length === 0){
+    listEl.innerHTML = '<div class="empty-hint" style="padding:12px;">Nenhum comprador cadastrado ainda.</div>';
+    return;
+  }
+  listEl.innerHTML = '';
+  compradores.forEach(c => {
+    const item = document.createElement('div');
+    item.className = 'company-list-item';
+    item.innerHTML = `
+      <div class="ci-text"><div>${escapeHtml(c.nome || '(sem nome)')}</div></div>
+      <div class="ci-actions">
+        <button class="small ghost" data-action="edit" data-id="${c.id}">Editar</button>
+        <button class="small danger-text" data-action="del" data-id="${c.id}">Excluir</button>
+      </div>
+    `;
+    listEl.appendChild(item);
+  });
+  listEl.querySelectorAll('[data-action="edit"]').forEach(btn => {
+    btn.addEventListener('click', () => startEditComprador(parseInt(btn.dataset.id, 10)));
+  });
+  listEl.querySelectorAll('[data-action="del"]').forEach(btn => {
+    btn.addEventListener('click', () => deleteComprador(parseInt(btn.dataset.id, 10)));
+  });
+}
+
+function startEditComprador(id){
+  const c = compradores.find(x => x.id === id);
+  if(!c) return;
+  editingCompradorId = id;
+  document.getElementById('cpId').value = id;
+  document.getElementById('cpNome').value = c.nome || '';
+  document.getElementById('btnCancelEditComprador').style.display = 'inline-block';
+  document.getElementById('btnSaveComprador').textContent = 'Salvar alterações';
+  document.getElementById('cpNome').focus();
+}
+
+function resetCompradorForm(){
+  editingCompradorId = null;
+  document.getElementById('cpId').value = '';
+  document.getElementById('cpNome').value = '';
+  document.getElementById('btnCancelEditComprador').style.display = 'none';
+  document.getElementById('btnSaveComprador').textContent = 'Salvar comprador';
+}
+
+function deleteComprador(id){
+  if(!confirm('Excluir este comprador da lista?')) return;
+  compradores = compradores.filter(c => c.id !== id);
+  if(editingCompradorId === id) resetCompradorForm();
+  renderCompradorManageList();
+  renderCompradorSelect();
+  refreshItemCompradorDropdowns();
+  scheduleGithubSave('compradores');
+}
+
+document.getElementById('btnSaveComprador').addEventListener('click', () => {
+  const nome = document.getElementById('cpNome').value.trim();
+  if(!nome){ alert('Informe o nome do comprador.'); return; }
+  const currentSelValue = document.getElementById('applyResponsavel').value;
+  const wasSelected = editingCompradorId && compradores.find(c => c.id === editingCompradorId && c.nome === currentSelValue);
+  if(editingCompradorId){
+    const c = compradores.find(x => x.id === editingCompradorId);
+    c.nome = nome;
+  } else {
+    compradorSeq++;
+    compradores.push({ id: compradorSeq, nome });
+  }
+  resetCompradorForm();
+  renderCompradorManageList();
+  renderCompradorSelect();
+  refreshItemCompradorDropdowns();
+  if(wasSelected) document.getElementById('applyResponsavel').value = nome;
+  scheduleGithubSave('compradores');
+});
+
+document.getElementById('btnCancelEditComprador').addEventListener('click', resetCompradorForm);
+
+document.getElementById('btnManageCompradores').addEventListener('click', () => {
+  renderCompradorManageList();
+  document.getElementById('compradorModalOverlay').classList.add('open');
+});
+document.getElementById('btnCloseCompradorModal').addEventListener('click', () => {
+  document.getElementById('compradorModalOverlay').classList.remove('open');
+  resetCompradorForm();
+});
+document.getElementById('compradorModalOverlay').addEventListener('click', (e) => {
+  if(e.target.id === 'compradorModalOverlay'){
+    document.getElementById('compradorModalOverlay').classList.remove('open');
+    resetCompradorForm();
+  }
+});
+
 /* ---------- Empresas (perfis salvos por CNPJ) ---------- */
 
 function renderCompanySelect(){
@@ -2182,7 +2354,7 @@ function renderCompanySelect(){
     companies.forEach(c => {
       const opt = document.createElement('option');
       opt.value = c.id;
-      opt.textContent = [c.nome || '(sem nome)', c.cnpj || 'sem CNPJ', c.cidadeUf].filter(Boolean).join(' | ');
+      opt.textContent = [c.nome || '(sem nome)', c.cnpj || 'sem CNPJ', c.cidadeUf, c.tipo].filter(Boolean).join(' | ');
       sel.appendChild(opt);
     });
     if(companies.some(c => String(c.id) === prevValue)){
@@ -2226,6 +2398,7 @@ function renderCompanyDisplay(){
   lines.push(`<strong>${escapeHtml(c.nome || '')}</strong>`);
   if(c.cnpj) lines.push(escapeHtml(c.cnpj));
   if(c.cidadeUf) lines.push(escapeHtml(c.cidadeUf));
+  if(c.tipo) lines.push(escapeHtml(c.tipo));
   el.innerHTML = lines.join('<br>');
 }
 
@@ -2246,7 +2419,7 @@ function renderCompanyList(){
     const item = document.createElement('div');
     item.className = 'company-list-item';
     item.innerHTML = `
-      <div class="ci-text"><div>${escapeHtml(c.nome || '(sem nome)')}</div><div class="ci-cnpj">${escapeHtml([c.cnpj, c.cidadeUf].filter(Boolean).join(' | '))}</div></div>
+      <div class="ci-text"><div>${escapeHtml(c.nome || '(sem nome)')}</div><div class="ci-cnpj">${escapeHtml([c.cnpj, c.cidadeUf, c.tipo].filter(Boolean).join(' | '))}</div></div>
       <div class="ci-actions">
         <button class="small ghost" data-action="edit" data-id="${c.id}">Editar</button>
         <button class="small danger-text" data-action="del" data-id="${c.id}">Excluir</button>
@@ -2270,6 +2443,7 @@ function startEditCompany(id){
   document.getElementById('cfNome').value = c.nome || '';
   document.getElementById('cfDoc').value = c.cnpj || '';
   document.getElementById('cfCidadeUf').value = c.cidadeUf || '';
+  document.getElementById('cfTipo').value = c.tipo || 'Próprio';
   document.getElementById('btnCancelEdit').style.display = 'inline-block';
   document.getElementById('btnSaveCompany').textContent = 'Salvar alterações';
   document.getElementById('cfNome').focus();
@@ -2281,6 +2455,7 @@ function resetCompanyForm(){
   document.getElementById('cfNome').value = '';
   document.getElementById('cfDoc').value = '';
   document.getElementById('cfCidadeUf').value = '';
+  document.getElementById('cfTipo').value = 'Próprio';
   document.getElementById('btnCancelEdit').style.display = 'none';
   document.getElementById('btnSaveCompany').textContent = 'Salvar empresa';
 }
@@ -2298,12 +2473,14 @@ function deleteCompany(id){
    abaixo caso ainda não existam (comparando pelo CNPJ, ignorando pontuação),
    sem duplicar as que o usuário já tinha cadastrado manualmente. */
 const SEED_COMPANIES = [
-  { nome: 'B.F. MOUTINHO', cnpj: '22.053.529/0001-06', cidadeUf: 'DUQUE DE CAXIAS - RJ' },
-  { nome: 'T.A.N. MOUTINHO', cnpj: '39.814.734/0001-40', cidadeUf: 'DUQUE DE CAXIAS - RJ' },
-  { nome: 'J.C. MOUTINHO', cnpj: '02.729.419/0001-04', cidadeUf: 'DUQUE DE CAXIAS - RJ' },
-  { nome: 'B.F. MOUTINHO', cnpj: '22.053.529/0003-78', cidadeUf: 'ANHANGUERA - SP' },
-  { nome: 'T.A.N. COMERCIO', cnpj: '39.814.734/0002-20', cidadeUf: 'PERUS - SP' },
-  { nome: 'B.F. MOUTINHO', cnpj: '22.053.529/0004-59', cidadeUf: 'BETIM - MG' },
+  { nome: 'B.F. MOUTINHO', cnpj: '22.053.529/0001-06', cidadeUf: 'DUQUE DE CAXIAS - RJ', tipo: 'Próprio' },
+  { nome: 'T.A.N. MOUTINHO', cnpj: '39.814.734/0001-40', cidadeUf: 'DUQUE DE CAXIAS - RJ', tipo: 'Próprio' },
+  { nome: 'J.C. MOUTINHO', cnpj: '02.729.419/0001-04', cidadeUf: 'DUQUE DE CAXIAS - RJ', tipo: 'Próprio' },
+  { nome: 'B.F. MOUTINHO', cnpj: '22.053.529/0003-78', cidadeUf: 'ANHANGUERA - SP', tipo: 'Mercado Livre' },
+  // Perus é em SP, não no RJ (ver fixKnownCompanyDataIssues abaixo, que corrige cadastros
+  // antigos salvos com a cidade errada).
+  { nome: 'T.A.N. COMERCIO', cnpj: '39.814.734/0002-20', cidadeUf: 'PERUS - SP', tipo: 'Mercado Livre' },
+  { nome: 'B.F. MOUTINHO', cnpj: '22.053.529/0004-59', cidadeUf: 'BETIM - MG', tipo: 'Próprio' },
 ];
 
 function normalizeCnpj(v){
@@ -2317,7 +2494,7 @@ function seedCompaniesIfMissing(){
     const key = normalizeCnpj(sc.cnpj);
     if(existing.has(key)) return;
     companySeq++;
-    companies.push({ id: companySeq, nome: sc.nome, cnpj: sc.cnpj, cidadeUf: sc.cidadeUf });
+    companies.push({ id: companySeq, nome: sc.nome, cnpj: sc.cnpj, cidadeUf: sc.cidadeUf, tipo: sc.tipo });
     existing.add(key);
     added++;
   });
@@ -2336,6 +2513,20 @@ function fixKnownCompanyDataIssues(){
   return changed;
 }
 
+/* Preenche o campo "Tipo" (Próprio / Mercado Livre) em empresas que já estavam
+   cadastradas antes desse campo existir, usando os dados conhecidos de SEED_COMPANIES
+   como referência (casando pelo CNPJ). Não sobrescreve um tipo já preenchido. */
+function backfillCompanyTiposIfMissing(){
+  let changed = false;
+  companies.forEach(c => {
+    if(c.tipo) return;
+    const sc = SEED_COMPANIES.find(x => normalizeCnpj(x.cnpj) === normalizeCnpj(c.cnpj));
+    c.tipo = sc ? sc.tipo : 'Próprio';
+    changed = true;
+  });
+  return changed;
+}
+
 document.getElementById('btnSaveCompany').addEventListener('click', () => {
   const nome = document.getElementById('cfNome').value.trim();
   const cnpj = document.getElementById('cfDoc').value.trim();
@@ -2344,6 +2535,7 @@ document.getElementById('btnSaveCompany').addEventListener('click', () => {
     nome,
     cnpj,
     cidadeUf: document.getElementById('cfCidadeUf').value.trim(),
+    tipo: document.getElementById('cfTipo').value,
   };
   if(editingCompanyId){
     const c = companies.find(x => x.id === editingCompanyId);
@@ -2837,7 +3029,7 @@ function clearApplyFields(){
   document.getElementById('applyProportionSelect').selectedIndex = 0;
   document.getElementById('applyProportionTotal').value = '';
   document.getElementById('applyGradeProd').value = '';
-  document.getElementById('applyGradeRef').value = '';
+  document.getElementById('applyGradeRef').value = 'SEM CADASTRO';
   document.getElementById('applyGradeCor').value = '';
   document.getElementById('applyGradePreco').value = 'R$ 0,00';
   document.getElementById('applyTriangular').value = 'Não';
@@ -3333,6 +3525,22 @@ const XLSX_DATA_TEXT = 'FF434343';
 const XLSX_HEADER_BORDER_COLOR = 'FF999999';
 const XLSX_DATA_BORDER_COLOR = 'FF434343';
 
+// "SEM CADASTRO" é o valor padrão do campo Referência/SKU quando o produto não tem um
+// SKU cadastrado. Usado tanto no Excel quanto no PDF pra decidir a composição da coluna.
+const SEM_CADASTRO = 'SEM CADASTRO';
+function isSemCadastro(ref){
+  return String(ref || '').trim().toUpperCase() === SEM_CADASTRO;
+}
+// Descrição do Produto: produto + cor + tamanho.
+function composeItemDescricao(it){
+  return [it.prod, it.cor, it.tam].filter(Boolean).join(' - ');
+}
+// SKU: "SEM CADASTRO" quando não há referência cadastrada; senão, referência + cor.
+function composeItemSku(it){
+  if(isSemCadastro(it.ref)) return SEM_CADASTRO;
+  return [it.ref, it.cor].filter(Boolean).join(' - ');
+}
+
 async function buildXlsxBuffer(data){
   // data: {ordNum, marca, prazoPagto, dataFat (iso "yyyy-mm-dd" ou null), obsGerais,
   //        items: [{prod, ref, cor, tam, qtd, preco, triangular, etiquetagem, cnpjInicial (texto), cnpjFinal (texto), obs, responsavel}]}
@@ -3352,8 +3560,8 @@ async function buildXlsxBuffer(data){
   });
 
   data.items.forEach(it => {
-    const descricao = [it.prod, it.cor, it.tam].filter(Boolean).join(' - ');
-    const sku = [it.ref, it.cor, it.tam].filter(Boolean).join(' - ');
+    const descricao = composeItemDescricao(it);
+    const sku = composeItemSku(it);
     const rowValues = [
       data.ordNum, descricao, sku, data.marca, it.qtd, it.preco, data.prazoPagto,
       dataFatDate, (it.triangular || 'Não').toUpperCase(), (it.etiquetagem || 'Sim').toUpperCase(),
@@ -3366,8 +3574,9 @@ async function buildXlsxBuffer(data){
       cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
       const side = { style: 'dotted', color: { argb: XLSX_DATA_BORDER_COLOR } };
       cell.border = { left: side, right: side, bottom: side };
-      if(idx === 4) cell.numFmt = '0 "un"';
-      else if(idx === 5) cell.numFmt = '[$R$ -416]#,##0.00';
+      // Qtd e Custo Unidade saem como número puro — sem "un." e sem símbolo de moeda.
+      if(idx === 4) cell.numFmt = '0';
+      else if(idx === 5) cell.numFmt = '#,##0.00';
       else if(idx === 7 && dataFatDate) cell.numFmt = 'dd/MM/yyyy';
       else if(XLSX_TEXT_COLS.has(idx)) cell.numFmt = '@';
     });
@@ -3458,7 +3667,10 @@ function buildPdfDoc(data){
   const pageWidth = doc.internal.pageSize.getWidth();
   let y = 40;
 
-  const composeDescricao = (it) => [it.prod, it.cor, it.tam].filter(Boolean).join(' - ');
+  // Se NENHUM item tiver uma referência cadastrada, a coluna SKU inteira some da tabela
+  // (não faz sentido mostrar uma coluna só de "SEM CADASTRO" repetido). Se ao menos um
+  // item tiver referência, a coluna aparece — com "SEM CADASTRO" nas linhas que não têm.
+  const allSemCadastro = data.items.length > 0 && data.items.every(it => isSemCadastro(it.ref));
 
   // Operação triangular é tratada como um dado do PEDIDO (não de cada item): se qualquer
   // item estiver marcado como "Sim", o pedido inteiro é sinalizado logo no topo, ao lado
@@ -3535,33 +3747,40 @@ function buildPdfDoc(data){
   }
   y += 10;
 
-  // Mesma composição de "Descrição do Produto" e "SKU" usada no Excel: produto/referência
-  // combinados com cor e tamanho num único texto, em vez de colunas separadas.
-  const body = data.items.map(it => {
-    const sku = [it.ref, it.cor, it.tam].filter(Boolean).join(' - ');
-    return [composeDescricao(it), sku, String(it.qtd), brl(it.preco), brl(it.sub)];
-  });
+  // Mesma composição de "Descrição do Produto" e "SKU" usada no Excel: produto + cor + tamanho, e
+  // referência + cor (sem o tamanho), respectivamente.
+  const head = allSemCadastro
+    ? ['Descrição do Produto','Qtd','Preço Unit.','Subtotal']
+    : ['Descrição do Produto','SKU','Qtd','Preço Unit.','Subtotal'];
+  const body = data.items.map(it => allSemCadastro
+    ? [composeItemDescricao(it), String(it.qtd), brl(it.preco), brl(it.sub)]
+    : [composeItemDescricao(it), composeItemSku(it), String(it.qtd), brl(it.preco), brl(it.sub)]
+  );
   const totQtd = data.items.reduce((s,it)=>s+it.qtd,0);
   const totVal = data.items.reduce((s,it)=>s+it.sub,0);
+  const foot = allSemCadastro
+    ? ['', String(totQtd), 'Total', brl(totVal)]
+    : ['', '', String(totQtd), 'Total', brl(totVal)];
+  const qtyColIdx = allSemCadastro ? 1 : 2;
 
   doc.autoTable({
     startY: y,
-    head: [['Descrição do Produto','SKU','Qtd','Preço Unit.','Subtotal']],
+    head: [head],
     body: body,
-    foot: [['', '', String(totQtd), 'Total', brl(totVal)]],
+    foot: [foot],
     styles: {fontSize:9, cellPadding:5},
     headStyles: {fillColor:[0,0,0], textColor:255, fontStyle:'bold'},
     footStyles: {fillColor:[230,230,230], textColor:[0,0,0], fontStyle:'bold'},
     margin: {left:40, right:40},
     columnStyles: {
-      2: {halign:'right'}, 3: {halign:'right'}, 4: {halign:'right'}
+      [qtyColIdx]: {halign:'right'}, [qtyColIdx+1]: {halign:'right'}, [qtyColIdx+2]: {halign:'right'}
     }
   });
 
   // Coluna de Obs. saiu da tabela — observações de itens (quando houver) e as gerais do
   // pedido ficam juntas no rodapé do PDF.
   let finalY = doc.lastAutoTable.finalY + 20;
-  const itemObsLines = data.items.filter(it => it.obs).map(it => `${composeDescricao(it)}: ${it.obs}`);
+  const itemObsLines = data.items.filter(it => it.obs).map(it => `${composeItemDescricao(it)}: ${it.obs}`);
   if(data.obsGerais || itemObsLines.length){
     const pageHeight = doc.internal.pageSize.getHeight();
     if(finalY > pageHeight - 80){ doc.addPage(); finalY = 40; }
@@ -3738,6 +3957,7 @@ document.getElementById('btnGateSetPassword').addEventListener('click', async ()
     await ghWriteFile('grades.json', {grades: []}, 'Inicializa grades');
     await ghWriteFile('marcas.json', {marcas: []}, 'Inicializa marcas');
     await ghWriteFile('prazos.json', {prazos: []}, 'Inicializa prazos');
+    await ghWriteFile('compradores.json', {compradores: []}, 'Inicializa compradores');
     await ghWriteFile('orders.json', {orders: []}, 'Inicializa histórico de pedidos');
     saveGhConfigToStorage(ghConfig);
     await unlockApp();
@@ -3782,13 +4002,14 @@ document.getElementById('btnLogout').addEventListener('click', () => {
 
 async function unlockApp(){
   try{
-    const [companiesFile, gradesFile, proportionsFile, marcasFile, prazosFile, ordersFile] = await Promise.all([
+    const [companiesFile, gradesFile, proportionsFile, marcasFile, prazosFile, ordersFile, compradoresFile] = await Promise.all([
       ghReadFile('companies.json'),
       ghReadFile('grades.json'),
       ghReadFile('proportions.json'),
       ghReadFile('marcas.json'),
       ghReadFile('prazos.json'),
       ghReadFile('orders.json'),
+      ghReadFile('compradores.json'),
     ]);
     if(companiesFile.exists){
       ghShas['companies.json'] = companiesFile.sha;
@@ -3797,6 +4018,7 @@ async function unlockApp(){
     }
     const companiesSeeded = seedCompaniesIfMissing();
     const companiesFixed = fixKnownCompanyDataIssues();
+    const companyTiposBackfilled = backfillCompanyTiposIfMissing();
     if(gradesFile.exists){
       ghShas['grades.json'] = gradesFile.sha;
       grades = (gradesFile.data && gradesFile.data.grades) || [];
@@ -3837,14 +4059,23 @@ async function unlockApp(){
       ghShas['orders.json'] = ordersFile.sha;
       orders = (ordersFile.data && ordersFile.data.orders) || [];
     }
+    if(compradoresFile.exists){
+      ghShas['compradores.json'] = compradoresFile.sha;
+      compradores = (compradoresFile.data && compradoresFile.data.compradores) || [];
+      compradorSeq = compradores.reduce((max,c) => Math.max(max, c.id || 0), 0);
+    }
+    const compradoresSeeded = seedCompradoresIfMissing();
     renderCompanySelect();
     renderGradeSelect();
     renderProportionSelect();
     renderMarcaSelect();
     renderPrazoSelect();
-    if(companiesSeeded > 0 || companiesFixed) scheduleGithubSave('companies');
+    renderCompradorSelect();
+    refreshItemCompradorDropdowns();
+    if(companiesSeeded > 0 || companiesFixed || companyTiposBackfilled) scheduleGithubSave('companies');
     if(marcasNeedMigration) scheduleGithubSave('marcas');
     if(prazosNeedMigration) scheduleGithubSave('prazos');
+    if(compradoresSeeded > 0) scheduleGithubSave('compradores');
     document.getElementById('gateOverlay').classList.add('hidden');
     document.getElementById('appRoot').style.display = '';
     setSyncStatus('Preencha os itens e gere o arquivo para enviar.', null);
