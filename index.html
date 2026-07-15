@@ -3504,6 +3504,18 @@ function getSelectedHistoryOrders(){
   return orders.filter(o => ordNums.includes(o.ordNum));
 }
 
+// Ordena pedidos pela Data de Faturamento, da mais próxima pra mais distante — usado no
+// download em arquivo único (PDF/Excel combinados), onde a ordem das páginas/linhas
+// importa. Pedidos sem data de faturamento ficam por último (não dá pra saber a "distância" deles).
+function sortOrdersByDataFat(list){
+  return [...list].sort((a, b) => {
+    if(!a.dataFat && !b.dataFat) return 0;
+    if(!a.dataFat) return 1;
+    if(!b.dataFat) return -1;
+    return a.dataFat.localeCompare(b.dataFat);
+  });
+}
+
 function updateOrderHistorySelectionUI(){
   const total = document.querySelectorAll('#orderHistoryListEl .order-history-check').length;
   const checked = document.querySelectorAll('#orderHistoryListEl .order-history-check:checked').length;
@@ -3553,7 +3565,7 @@ document.getElementById('historyDownloadModalOverlay').addEventListener('click',
 });
 
 document.getElementById('btnHistoryDownloadMerged').addEventListener('click', async () => {
-  const selected = getSelectedHistoryOrders();
+  const selected = sortOrdersByDataFat(getSelectedHistoryOrders());
   if(selected.length === 0) return;
   document.getElementById('historyDownloadModalOverlay').classList.remove('open');
   if(historyDownloadFormat === 'pdf'){
