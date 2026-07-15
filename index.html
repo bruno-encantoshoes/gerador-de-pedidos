@@ -1674,11 +1674,16 @@ function attachCnpjCpfMask(input){
 
 /* ---------- Itens ---------- */
 
-function buildCompanyOptionsHTML(selectedId){
-  if(companies.length === 0){
-    return '<option value="">—</option>';
-  }
+// Valor especial selecionável no CNPJ Final Remessa quando o pedido não tem
+// remessa/CNPJ final definido (nem sempre há um CNPJ cadastrado para isso).
+const NAO_CONSTA = 'NAO_CONSTA';
+
+function buildCompanyOptionsHTML(selectedId, includeNaoConsta){
   let html = '<option value="">—</option>';
+  if(includeNaoConsta){
+    const selNc = String(selectedId) === NAO_CONSTA ? ' selected' : '';
+    html += `<option value="${NAO_CONSTA}"${selNc}>NÃO CONSTA</option>`;
+  }
   companies.forEach(c => {
     const sel = String(c.id) === String(selectedId) ? ' selected' : '';
     const label = [c.nome || '(sem nome)', c.cnpj || 'sem CNPJ', c.cidadeUf, c.tipo].filter(Boolean).join(' | ');
@@ -1715,7 +1720,7 @@ function addItem(focusFirst){
       </select>
     </td>
     <td class="col-cnpj"><select data-field="cnpjInicial">${buildCompanyOptionsHTML('')}</select></td>
-    <td class="col-cnpj"><select data-field="cnpjFinal">${buildCompanyOptionsHTML('')}</select></td>
+    <td class="col-cnpj"><select data-field="cnpjFinal">${buildCompanyOptionsHTML('', true)}</select></td>
     <td class="col-obs"><input type="text" data-field="obs" placeholder="opcional"></td>
     <td class="col-resp"><select data-field="responsavel" class="last-field">${buildCompradorOptionsHTML('')}</select></td>
     <td class="col-rm"><button class="danger-text" title="Remover item">✕</button></td>
@@ -1816,7 +1821,7 @@ function renderBulkEditValueInput(field){
         <option value="Sim"${def === 'Sim' ? ' selected' : ''}>Sim</option>
       </select>`;
   } else if(field === 'cnpjInicial' || field === 'cnpjFinal'){
-    wrap.innerHTML = `<select id="bulkEditValueInput">${buildCompanyOptionsHTML('')}</select>`;
+    wrap.innerHTML = `<select id="bulkEditValueInput">${buildCompanyOptionsHTML('', field === 'cnpjFinal')}</select>`;
   } else {
     wrap.innerHTML = '<input type="text" id="bulkEditValueInput" placeholder="Novo valor">';
   }
@@ -1890,6 +1895,7 @@ function updateCount(){
 }
 
 function companyLabel(id){
+  if(id === NAO_CONSTA) return 'NÃO CONSTA';
   const c = companies.find(x => String(x.id) === String(id));
   if(!c) return '';
   return [c.nome, c.cnpj, c.cidadeUf, c.tipo].filter(Boolean).join(' | ');
@@ -2372,14 +2378,14 @@ function refreshItemCompanyDropdowns(){
       const sel = tr.querySelector(`[data-field="${field}"]`);
       if(!sel) return;
       const prev = sel.value;
-      sel.innerHTML = buildCompanyOptionsHTML(prev);
+      sel.innerHTML = buildCompanyOptionsHTML(prev, field === 'cnpjFinal');
     });
   });
   ['applyCnpjInicial','applyCnpjFinal'].forEach(id => {
     const sel = document.getElementById(id);
     if(!sel) return;
     const prev = sel.value;
-    sel.innerHTML = buildCompanyOptionsHTML(prev);
+    sel.innerHTML = buildCompanyOptionsHTML(prev, id === 'applyCnpjFinal');
   });
 }
 
