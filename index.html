@@ -814,6 +814,37 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   .company-list-item .ci-text{line-height:1.4;}
   .company-list-item .ci-text .ci-cnpj{color:var(--ink-soft);font-size:12px;}
   .company-list-item .ci-actions{display:flex;gap:4px;}
+  #orderHistoryListEl{max-height:420px;}
+  .order-history-day-header{
+    width:100%;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:9px 12px;
+    background:var(--accent-soft);
+    border:none;
+    border-bottom:1px solid var(--line);
+    font-size:12.5px;
+    font-weight:650;
+    color:var(--accent-dark);
+    cursor:pointer;
+    text-align:left;
+    font-family:inherit;
+  }
+  .order-history-day-header:hover{background:#dcece3;}
+  .ohd-chevron{display:inline-block;transition:transform .12s;}
+  .order-history-day.open .ohd-chevron{transform:rotate(90deg);}
+  .ohd-count{margin-left:auto;font-weight:500;color:var(--ink-soft);}
+  .order-history-day-body{border-bottom:1px solid var(--line);}
+  .order-history-day:last-child .order-history-day-body{border-bottom:none;}
+  .order-history-item{padding:10px 12px;border-bottom:1px solid var(--line);}
+  .order-history-item:last-child{border-bottom:none;}
+  .ohi-row{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}
+  .ohi-title{font-size:13px;font-weight:650;}
+  .ohi-title .ohi-marca{font-weight:500;color:var(--ink-soft);}
+  .ohi-meta{font-size:12px;color:var(--ink-soft);margin-top:2px;}
+  .ohi-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px;}
+  .ohi-actions button{width:100%;}
   .modal-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   .modal-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
   .import-export-row{
@@ -838,6 +869,22 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     border-radius:8px;
   }
   .grade-apply-bar .field{margin-bottom:0;}
+  .leva-list{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;}
+  .leva-chip{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    padding:8px 12px;
+    background:#fafbfc;
+    border:1px solid var(--line);
+    border-radius:8px;
+    font-size:12.5px;
+  }
+  .leva-chip.editing{border-color:var(--accent);background:var(--accent-soft);}
+  .leva-chip-text{color:var(--ink);}
+  .leva-chip-meta{color:var(--ink-soft);}
+  .leva-chip-actions{display:flex;gap:4px;flex:none;}
   .h2-actions{display:flex;gap:8px;flex-wrap:wrap;}
   .grade-rows-table{width:100%;border-collapse:collapse;}
   .grade-rows-table td{padding:4px 6px;}
@@ -1108,9 +1155,12 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         <label>Responsável Pedido</label>
         <input type="text" id="applyResponsavel" placeholder="opcional">
       </div>
-      <button type="button" class="primary" id="btnApplyGrade">Nova leva desta grade</button>
+      <button type="button" class="primary" id="btnInsertLeva">➕ Inserir dados ao pedido</button>
+      <button type="button" class="ghost" id="btnCancelEditLeva" style="display:none;">Cancelar edição</button>
     </div>
-    <div class="hint" style="margin-top:-6px;margin-bottom:14px;">Assim que você preenche Produto/Referência/Cor/Preço/Op. Triangular/Etiquetagem/CNPJs/Responsável aqui, as linhas da tabela abaixo já vão sendo preenchidas sozinhas. Escolha o Método: "Por Grade" usa a quantidade fixa cadastrada (multiplicada pelo Fator); "Por Proporção" divide o Total de peças que você digitar de acordo com a % cadastrada para cada tamanho. Use "Nova leva" para começar outra leva (ex: outra cor) sem mexer na que já está pronta.</div>
+    <div class="hint" style="margin-top:-6px;margin-bottom:10px;">Escolha o Método ("Por Grade" usa a quantidade fixa cadastrada multiplicada pelo Fator; "Por Proporção" divide o Total de peças pela % cadastrada), preencha Produto/Referência/Cor/Preço/Op. Triangular/Etiquetagem/CNPJs/Responsável e clique em "Inserir dados ao pedido" — só então as linhas são geradas. Para outra cor do mesmo produto, ajuste os campos e clique em "Inserir dados ao pedido" de novo: isso cria uma leva nova, sem mexer nas já inseridas. Para corrigir uma leva já inserida, clique em "Editar" na lista abaixo dela.</div>
+
+    <div class="leva-list" id="levaListEl"></div>
 
     <div class="table-wrap">
       <table class="items">
@@ -1239,6 +1289,19 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       <input type="hidden" id="propId">
       <div class="field"><label>Nome da Proporção</label><input type="text" id="propNome" placeholder="Ex: Curva padrão feminina"></div>
 
+      <div class="field-row">
+        <div class="field">
+          <label>Tamanho inicial</label>
+          <input type="number" id="propRangeFrom" placeholder="Ex: 33">
+        </div>
+        <div class="field">
+          <label>Tamanho final</label>
+          <input type="number" id="propRangeTo" placeholder="Ex: 40">
+        </div>
+        <button type="button" class="small" id="btnAddPropRange">+ Adicionar intervalo</button>
+      </div>
+      <div class="hint" style="margin-top:-6px;margin-bottom:12px;">Preenche automaticamente todos os tamanhos entre o inicial e o final, com 0% (é só ajustar a proporção de cada um depois).</div>
+
       <div class="field">
         <label>Colar lista rápida (um tamanho por linha, ex: 37-15 para 15%)</label>
         <textarea id="propPaste" placeholder="37-15&#10;38-20&#10;39-25&#10;40-20&#10;41-15&#10;42-5"></textarea>
@@ -1312,7 +1375,11 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   <div class="modal">
     <button class="modal-close" id="btnCloseOrderHistoryModal">✕</button>
     <h3>Histórico de Pedidos</h3>
-    <div class="modal-sub">Pedidos ficam salvos automaticamente aqui sempre que você baixa o PDF ou o Excel. Clique em "Carregar" para reabrir um pedido antigo (por exemplo, pra gerar o arquivo de novo).</div>
+    <div class="modal-sub">Pedidos ficam salvos automaticamente aqui sempre que você baixa o PDF ou o Excel, agrupados por dia. Clique em "Abrir" para reabrir um pedido antigo na tela.</div>
+
+    <div class="field" style="margin-bottom:10px;">
+      <input type="text" id="orderHistorySearch" placeholder="Buscar por nº da OC, marca/fornecedor ou produto...">
+    </div>
 
     <div class="company-list" id="orderHistoryListEl"></div>
   </div>
@@ -2423,6 +2490,37 @@ document.getElementById('btnParsePropPaste').addEventListener('click', () => {
 
 document.getElementById('btnAddPropRow').addEventListener('click', () => addProportionRow('', 0));
 
+document.getElementById('btnAddPropRange').addEventListener('click', () => {
+  const fromInput = document.getElementById('propRangeFrom');
+  const toInput = document.getElementById('propRangeTo');
+  const de = parseInt(fromInput.value, 10);
+  const ate = parseInt(toInput.value, 10);
+  if(isNaN(de) || isNaN(ate)){
+    alert('Preencha os dois tamanhos do intervalo (inicial e final).');
+    return;
+  }
+  const start = Math.min(de, ate);
+  const end = Math.max(de, ate);
+  if(end - start > 200){
+    alert('Esse intervalo está muito grande. Confira os tamanhos digitados.');
+    return;
+  }
+  const existing = new Set(getProportionRowsData().map(r => r.tam));
+  let added = 0;
+  for(let t = start; t <= end; t++){
+    const tamStr = String(t);
+    if(existing.has(tamStr)) continue;
+    addProportionRow(tamStr, 0);
+    existing.add(tamStr);
+    added++;
+  }
+  fromInput.value = '';
+  toInput.value = '';
+  if(added === 0){
+    alert('Todos os tamanhos desse intervalo já estavam na lista.');
+  }
+});
+
 function renderProportionManageList(){
   const listEl = document.getElementById('proportionListEl');
   if(proportions.length === 0){
@@ -2469,6 +2567,8 @@ function resetProportionForm(){
   document.getElementById('propId').value = '';
   document.getElementById('propNome').value = '';
   document.getElementById('propPaste').value = '';
+  document.getElementById('propRangeFrom').value = '';
+  document.getElementById('propRangeTo').value = '';
   clearProportionRows();
   document.getElementById('btnCancelEditProportion').style.display = 'none';
   document.getElementById('btnSaveProportion').textContent = 'Salvar proporção';
@@ -2573,24 +2673,186 @@ function apportionByPercentage(pcts, total){
   return result;
 }
 
-/* Enquanto uma grade OU uma proporção está "ativa", os campos da barra (fator/total,
-   produto, referência, cor, preço) preenchem automaticamente as linhas dela na tabela
-   de itens, em tempo real. Só um método fica ativo por vez — nunca os dois juntos. */
-let activeBatch = null; // { mode: 'grade'|'proportion', sourceId, rows: [{tr, pair}] }
+/* Uma "leva" é o conjunto de linhas (uma por tamanho) geradas de uma vez a partir de
+   uma grade ou proporção — normalmente uma cor/variação do produto. Os campos da barra
+   só são aplicados à tabela quando o usuário clica em "Inserir dados ao pedido" (nada
+   mais é preenchido sozinho enquanto se digita). Cada leva fica marcada nas linhas via
+   tr.dataset.leva, o que permite reabrir só aquela leva pra edição depois (ex.: voltar
+   e corrigir a 1ª cor depois de já ter inserido a 2ª), sem afetar o resto do pedido. */
+let levas = []; // [{id, mode: 'grade'|'proportion', sourceId, fator, total}]
+let levaSeq = 0;
+let editingLevaId = null;
 
-function startBatch(mode, sourceId){
-  const list = mode === 'grade' ? grades : proportions;
-  const source = list.find(x => String(x.id) === String(sourceId));
-  if(!source){ activeBatch = null; return; }
-  const rows = source.pares.map(p => ({ tr: addItem(false), pair: p }));
-  activeBatch = { mode, sourceId: source.id, rows };
-  syncActiveBatch();
+// precisa ser anexado cedo, para que o valor já esteja formatado em R$ quando for lido.
+attachCurrencyMask(document.getElementById('applyGradePreco'));
+
+function clearApplyFields(){
+  document.getElementById('applyMethodSelect').value = 'grade';
+  document.querySelectorAll('.apply-mode-grade').forEach(el => { el.style.display = ''; });
+  document.querySelectorAll('.apply-mode-proportion').forEach(el => { el.style.display = 'none'; });
+  // applyGradeSelect/applyProportionSelect não têm opção em branco (mesmo comportamento
+  // do carregamento inicial da página), então "limpar" é voltar para o primeiro item da lista.
+  document.getElementById('applyGradeSelect').selectedIndex = 0;
+  document.getElementById('applyGradeFactor').value = '1';
+  document.getElementById('applyProportionSelect').selectedIndex = 0;
+  document.getElementById('applyProportionTotal').value = '';
+  document.getElementById('applyGradeProd').value = '';
+  document.getElementById('applyGradeRef').value = '';
+  document.getElementById('applyGradeCor').value = '';
+  document.getElementById('applyGradePreco').value = 'R$ 0,00';
+  document.getElementById('applyTriangular').value = 'Não';
+  document.getElementById('applyEtiquetagem').value = 'Sim';
+  document.getElementById('applyCnpjInicial').value = '';
+  document.getElementById('applyCnpjFinal').value = '';
+  document.getElementById('applyResponsavel').value = '';
 }
 
-function syncActiveBatch(){
-  if(!activeBatch) return;
-  const ref = document.getElementById('applyGradeRef').value.trim();
+function updateInsertButtonState(){
+  const btn = document.getElementById('btnInsertLeva');
+  const cancelBtn = document.getElementById('btnCancelEditLeva');
+  if(editingLevaId){
+    btn.textContent = '💾 Atualizar dados desta leva';
+    cancelBtn.style.display = '';
+  } else {
+    btn.textContent = '➕ Inserir dados ao pedido';
+    cancelBtn.style.display = 'none';
+  }
+}
+
+function resetApplyBar(){
+  editingLevaId = null;
+  levas = [];
+  clearApplyFields();
+  updateInsertButtonState();
+  document.getElementById('levaListEl').innerHTML = '';
+}
+
+document.getElementById('applyMethodSelect').addEventListener('change', (e) => {
+  const mode = e.target.value;
+  document.querySelectorAll('.apply-mode-grade').forEach(el => { el.style.display = mode === 'grade' ? '' : 'none'; });
+  document.querySelectorAll('.apply-mode-proportion').forEach(el => { el.style.display = mode === 'proportion' ? '' : 'none'; });
+});
+
+function getLevaSummary(levaId){
+  const rows = Array.from(tbody.querySelectorAll(`tr[data-leva="${levaId}"]`));
+  if(rows.length === 0) return null;
+  const first = rows[0];
+  const prod = first.querySelector('[data-field="prod"]').value.trim();
+  const cor = first.querySelector('[data-field="cor"]').value.trim();
+  const totalQtd = rows.reduce((s, tr) => s + (parseFloat(tr.querySelector('[data-field="qtd"]').value) || 0), 0);
+  return { rows, first, prod, cor, totalQtd, count: rows.length };
+}
+
+function renderLevaList(){
+  const el = document.getElementById('levaListEl');
+  // descarta da lista qualquer leva cujas linhas já foram todas removidas manualmente
+  levas = levas.filter(l => tbody.querySelector(`tr[data-leva="${l.id}"]`));
+  if(levas.length === 0){ el.innerHTML = ''; return; }
+  el.innerHTML = levas.map(l => {
+    const sum = getLevaSummary(l.id);
+    if(!sum) return '';
+    const label = [sum.prod, sum.cor].filter(Boolean).join(' · ') || '(sem produto/cor)';
+    const isEditing = editingLevaId === l.id;
+    return `
+      <div class="leva-chip${isEditing ? ' editing' : ''}">
+        <div class="leva-chip-text">${escapeHtml(label)} <span class="leva-chip-meta">(${sum.count} tamanho(s) · ${sum.totalQtd} un.)</span></div>
+        <div class="leva-chip-actions">
+          <button type="button" class="small ghost" data-action="edit-leva" data-leva-id="${l.id}">${isEditing ? 'Editando…' : 'Editar'}</button>
+          <button type="button" class="small danger-text" data-action="del-leva" data-leva-id="${l.id}">Excluir</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+  el.querySelectorAll('[data-action="edit-leva"]').forEach(btn => {
+    btn.addEventListener('click', () => startEditLeva(btn.dataset.levaId));
+  });
+  el.querySelectorAll('[data-action="del-leva"]').forEach(btn => {
+    btn.addEventListener('click', () => deleteLeva(btn.dataset.levaId));
+  });
+}
+
+function startEditLeva(levaId){
+  const meta = levas.find(l => l.id === levaId);
+  const sum = getLevaSummary(levaId);
+  if(!meta || !sum) return;
+  const first = sum.first;
+
+  document.getElementById('applyMethodSelect').value = meta.mode;
+  document.querySelectorAll('.apply-mode-grade').forEach(el => { el.style.display = meta.mode === 'grade' ? '' : 'none'; });
+  document.querySelectorAll('.apply-mode-proportion').forEach(el => { el.style.display = meta.mode === 'proportion' ? '' : 'none'; });
+  if(meta.mode === 'grade'){
+    document.getElementById('applyGradeSelect').value = meta.sourceId;
+    document.getElementById('applyGradeFactor').value = meta.fator || 1;
+  } else {
+    document.getElementById('applyProportionSelect').value = meta.sourceId;
+    document.getElementById('applyProportionTotal').value = meta.total || '';
+  }
+  document.getElementById('applyGradeProd').value = first.querySelector('[data-field="prod"]').value;
+  document.getElementById('applyGradeRef').value = first.querySelector('[data-field="ref"]').value;
+  document.getElementById('applyGradeCor').value = first.querySelector('[data-field="cor"]').value;
+  document.getElementById('applyGradePreco').value = first.querySelector('[data-field="preco"]').value;
+  document.getElementById('applyTriangular').value = first.querySelector('[data-field="triangular"]').value;
+  document.getElementById('applyEtiquetagem').value = first.querySelector('[data-field="etiquetagem"]').value;
+  document.getElementById('applyCnpjInicial').value = first.querySelector('[data-field="cnpjInicial"]').value;
+  document.getElementById('applyCnpjFinal').value = first.querySelector('[data-field="cnpjFinal"]').value;
+  document.getElementById('applyResponsavel').value = first.querySelector('[data-field="responsavel"]').value;
+
+  editingLevaId = levaId;
+  updateInsertButtonState();
+  renderLevaList();
+}
+
+function cancelEditLeva(){
+  editingLevaId = null;
+  clearApplyFields();
+  updateInsertButtonState();
+  renderLevaList();
+}
+
+document.getElementById('btnCancelEditLeva').addEventListener('click', cancelEditLeva);
+
+function deleteLeva(levaId){
+  const sum = getLevaSummary(levaId);
+  if(!sum) return;
+  const label = [sum.prod, sum.cor].filter(Boolean).join(' · ') || '(sem produto/cor)';
+  if(!confirm(`Excluir os ${sum.count} tamanho(s) desta leva (${label})?`)) return;
+  sum.rows.forEach(tr => tr.remove());
+  levas = levas.filter(l => l.id !== levaId);
+  if(editingLevaId === levaId) cancelEditLeva();
+  recalcTotals();
+  updateCount();
+  updateBulkDeleteState();
+  renderLevaList();
+}
+
+function commitLeva(){
+  const mode = document.getElementById('applyMethodSelect').value;
+  const sourceId = mode === 'grade'
+    ? document.getElementById('applyGradeSelect').value
+    : document.getElementById('applyProportionSelect').value;
+
+  if(!sourceId){
+    alert(mode === 'grade'
+      ? 'Selecione uma grade cadastrada. Se ainda não tem nenhuma, clique em "Cadastrar grades" para criar.'
+      : 'Selecione uma proporção cadastrada. Se ainda não tem nenhuma, clique em "Cadastrar proporção" para criar.');
+    return;
+  }
+  const list = mode === 'grade' ? grades : proportions;
+  const source = list.find(x => String(x.id) === String(sourceId));
+  if(!source) return;
+
+  let qtys, fator = null, total = null;
+  if(mode === 'grade'){
+    fator = parseFloat(document.getElementById('applyGradeFactor').value) || 1;
+    qtys = source.pares.map(p => Math.round((parseFloat(p.qtd) || 0) * fator));
+  } else {
+    total = parseInt(document.getElementById('applyProportionTotal').value, 10) || 0;
+    if(total <= 0){ alert('Informe o total de unidades desse pedido.'); return; }
+    qtys = apportionByPercentage(source.pares.map(p => p.pct), total);
+  }
+
   const prod = document.getElementById('applyGradeProd').value.trim();
+  const ref = document.getElementById('applyGradeRef').value.trim();
   const cor = document.getElementById('applyGradeCor').value.trim();
   const preco = document.getElementById('applyGradePreco').value;
   const triangular = document.getElementById('applyTriangular').value;
@@ -2599,17 +2861,16 @@ function syncActiveBatch(){
   const cnpjFinal = document.getElementById('applyCnpjFinal').value;
   const responsavel = document.getElementById('applyResponsavel').value.trim();
 
-  let qtys;
-  if(activeBatch.mode === 'grade'){
-    const fator = parseFloat(document.getElementById('applyGradeFactor').value) || 1;
-    qtys = activeBatch.rows.map(({pair}) => Math.round((parseFloat(pair.qtd) || 0) * fator));
+  let levaId = editingLevaId;
+  if(levaId){
+    tbody.querySelectorAll(`tr[data-leva="${levaId}"]`).forEach(tr => tr.remove());
   } else {
-    const total = parseInt(document.getElementById('applyProportionTotal').value, 10) || 0;
-    qtys = apportionByPercentage(activeBatch.rows.map(({pair}) => pair.pct), total);
+    levaId = 'leva' + (++levaSeq);
   }
 
-  activeBatch.rows.forEach(({tr, pair}, idx) => {
-    if(!tr.isConnected) return; // linha removida manualmente pelo usuário
+  source.pares.forEach((pair, idx) => {
+    const tr = addItem(false);
+    tr.dataset.leva = levaId;
     tr.querySelector('[data-field="prod"]').value = prod;
     tr.querySelector('[data-field="ref"]').value = ref;
     tr.querySelector('[data-field="cor"]').value = cor;
@@ -2623,132 +2884,20 @@ function syncActiveBatch(){
     tr.querySelector('[data-field="responsavel"]').value = responsavel;
     recalcRow(tr);
   });
+
+  const levaMeta = { id: levaId, mode, sourceId: source.id, fator, total };
+  const existingIdx = levas.findIndex(l => l.id === levaId);
+  if(existingIdx >= 0) levas[existingIdx] = levaMeta; else levas.push(levaMeta);
+
+  editingLevaId = null;
+  updateInsertButtonState();
   recalcTotals();
   updateCount();
+  updateBulkDeleteState();
+  renderLevaList();
 }
 
-/* Sem grade selecionada: os campos comuns preenchem direto as linhas que já existem
-   na tabela de itens (as linhas em branco, ou as que já estão lá), em tempo real. */
-function applyCommonFieldsToAllRows(){
-  const ref = document.getElementById('applyGradeRef').value.trim();
-  const prod = document.getElementById('applyGradeProd').value.trim();
-  const cor = document.getElementById('applyGradeCor').value.trim();
-  const preco = document.getElementById('applyGradePreco').value;
-  const triangular = document.getElementById('applyTriangular').value;
-  const etiquetagem = document.getElementById('applyEtiquetagem').value;
-  const cnpjInicial = document.getElementById('applyCnpjInicial').value;
-  const cnpjFinal = document.getElementById('applyCnpjFinal').value;
-  const responsavel = document.getElementById('applyResponsavel').value.trim();
-
-  const rows = tbody.querySelectorAll('tr');
-  if(rows.length === 0){ addItem(false); }
-  tbody.querySelectorAll('tr').forEach(tr => {
-    tr.querySelector('[data-field="prod"]').value = prod;
-    tr.querySelector('[data-field="ref"]').value = ref;
-    tr.querySelector('[data-field="cor"]').value = cor;
-    tr.querySelector('[data-field="preco"]').value = preco;
-    tr.querySelector('[data-field="triangular"]').value = triangular;
-    tr.querySelector('[data-field="etiquetagem"]').value = etiquetagem;
-    tr.querySelector('[data-field="cnpjInicial"]').value = cnpjInicial;
-    tr.querySelector('[data-field="cnpjFinal"]').value = cnpjFinal;
-    tr.querySelector('[data-field="responsavel"]').value = responsavel;
-    recalcRow(tr);
-  });
-  recalcTotals();
-  updateCount();
-}
-
-/* Agrupa chamadas de sincronização por frame: evita recalcular a tabela inteira a
-   cada tecla digitada (o que pode deixar a tela "atrasada" em relação ao que foi
-   digitado); sempre lê os campos mais atuais na hora que o frame realmente roda. */
-let syncFrameScheduled = false;
-function scheduleSync(fn){
-  if(syncFrameScheduled) return;
-  syncFrameScheduled = true;
-  requestAnimationFrame(() => {
-    syncFrameScheduled = false;
-    fn();
-  });
-}
-
-// precisa ser anexado antes dos listeners de sincronização abaixo, para que o valor
-// já esteja formatado em R$ quando eles lerem o campo no mesmo evento de "input".
-attachCurrencyMask(document.getElementById('applyGradePreco'));
-
-document.getElementById('applyMethodSelect').addEventListener('change', (e) => {
-  const mode = e.target.value;
-  activeBatch = null; // abandona a leva ativa; as linhas já geradas continuam na tabela
-  document.querySelectorAll('.apply-mode-grade').forEach(el => { el.style.display = mode === 'grade' ? '' : 'none'; });
-  document.querySelectorAll('.apply-mode-proportion').forEach(el => { el.style.display = mode === 'proportion' ? '' : 'none'; });
-  document.getElementById('btnApplyGrade').textContent = mode === 'proportion' ? 'Nova leva desta proporção' : 'Nova leva desta grade';
-});
-
-document.getElementById('applyGradeSelect').addEventListener('change', (e) => {
-  const gradeId = e.target.value;
-  if(!gradeId){ activeBatch = null; return; }
-  startBatch('grade', gradeId);
-});
-
-document.getElementById('applyProportionSelect').addEventListener('change', (e) => {
-  const propId = e.target.value;
-  if(!propId){ activeBatch = null; return; }
-  startBatch('proportion', propId);
-});
-
-function syncFromBar(){
-  const mode = document.getElementById('applyMethodSelect').value;
-  const sourceId = mode === 'grade'
-    ? document.getElementById('applyGradeSelect').value
-    : document.getElementById('applyProportionSelect').value;
-  if(sourceId){
-    if(!activeBatch || activeBatch.mode !== mode || String(activeBatch.sourceId) !== String(sourceId)) startBatch(mode, sourceId);
-    else syncActiveBatch();
-  } else {
-    applyCommonFieldsToAllRows();
-  }
-}
-
-['applyGradeProd', 'applyGradeRef', 'applyGradeCor', 'applyGradePreco', 'applyResponsavel'].forEach(fieldId => {
-  document.getElementById(fieldId).addEventListener('input', () => scheduleSync(syncFromBar));
-});
-
-['applyTriangular', 'applyEtiquetagem', 'applyCnpjInicial', 'applyCnpjFinal'].forEach(fieldId => {
-  document.getElementById(fieldId).addEventListener('change', () => scheduleSync(syncFromBar));
-});
-
-document.getElementById('applyGradeFactor').addEventListener('input', () => {
-  if(activeBatch && activeBatch.mode === 'grade') scheduleSync(syncActiveBatch);
-});
-
-document.getElementById('applyProportionTotal').addEventListener('input', () => {
-  if(activeBatch && activeBatch.mode === 'proportion') scheduleSync(syncActiveBatch);
-});
-
-document.getElementById('btnApplyGrade').addEventListener('click', () => {
-  const mode = document.getElementById('applyMethodSelect').value;
-  if(mode === 'grade'){
-    const gradeId = document.getElementById('applyGradeSelect').value;
-    if(!gradeId){
-      alert('Selecione uma grade cadastrada. Se ainda não tem nenhuma, clique em "Cadastrar grades" para criar.');
-      return;
-    }
-    // Começa uma nova leva independente desta grade (útil para uma 2ª cor do mesmo modelo, por exemplo).
-    startBatch('grade', gradeId);
-  } else {
-    const propId = document.getElementById('applyProportionSelect').value;
-    if(!propId){
-      alert('Selecione uma proporção cadastrada. Se ainda não tem nenhuma, clique em "Cadastrar proporção" para criar.');
-      return;
-    }
-    const total = parseInt(document.getElementById('applyProportionTotal').value, 10) || 0;
-    if(total <= 0){
-      alert('Informe o total de unidades desse pedido.');
-      return;
-    }
-    // Começa uma nova leva independente desta proporção (útil para uma 2ª cor do mesmo modelo, por exemplo).
-    startBatch('proportion', propId);
-  }
-});
+document.getElementById('btnInsertLeva').addEventListener('click', commitLeva);
 
 /* ---------- Pedido: novo / init ---------- */
 
@@ -2765,7 +2914,7 @@ document.getElementById('btnAdd5').addEventListener('click', () => { for(let i=0
 
 document.getElementById('btnNew').addEventListener('click', () => {
   if(!confirm('Começar um novo pedido? Os itens e observações preenchidos serão perdidos (baixe o PDF/Excel antes, se precisar). As empresas cadastradas serão mantidas.')) return;
-  activeBatch = null;
+  resetApplyBar();
   tbody.innerHTML = '';
   document.getElementById('forNome').value = '';
   document.getElementById('ordObsGerais').value = '';
@@ -2809,8 +2958,65 @@ function saveCurrentOrderToHistory(){
 document.getElementById('btnSaveOrder').addEventListener('click', () => {
   const items = getItemsData();
   if(items.length === 0){ alert('Adicione ao menos um item antes de salvar o pedido.'); return; }
+  if(!confirm('Salvar este pedido no histórico? Isso não baixa nenhum arquivo, só grava os dados atuais.')) return;
   saveCurrentOrderToHistory();
 });
+
+function dayKeyFromIso(iso){
+  return (iso || '').slice(0,10);
+}
+
+function formatDayLabel(dayKey){
+  return formatDateBR(dayKey) || dayKey || 'Sem data';
+}
+
+function formatTimeBR(iso){
+  if(!iso) return '';
+  const d = new Date(iso);
+  if(isNaN(d.getTime())) return '';
+  const hh = String(d.getHours()).padStart(2,'0');
+  const mi = String(d.getMinutes()).padStart(2,'0');
+  return `${hh}:${mi}`;
+}
+
+function matchesOrderSearch(o, term){
+  if(!term) return true;
+  const t = term.toLowerCase();
+  if((o.ordNum || '').toLowerCase().includes(t)) return true;
+  if((o.marca || '').toLowerCase().includes(t)) return true;
+  return (o.items || []).some(it => (it.prod || '').toLowerCase().includes(t));
+}
+
+let orderHistoryOpenDays = new Set();
+
+function buildOrderHistoryItemEl(o){
+  const item = document.createElement('div');
+  item.className = 'order-history-item';
+  const dateTimeBits = [formatDateBR(o.ordDate), formatTimeBR(o.savedAt)].filter(Boolean).join(' · ');
+  const metaBits = [dateTimeBits, `${o.items.length} item(ns)`, `${o.totQtd} peça(s)`, brl(o.totValor)].filter(Boolean).join(' · ');
+  const titleHtml = escapeHtml(o.ordNum || '(sem número)') + (o.marca ? ` <span class="ohi-marca">· ${escapeHtml(o.marca)}</span>` : '');
+  item.innerHTML = `
+    <div class="ohi-row">
+      <div class="ohi-text">
+        <div class="ohi-title">${titleHtml}</div>
+        <div class="ohi-meta">${escapeHtml(metaBits)}</div>
+      </div>
+      <button type="button" class="danger-text" data-action="del">Excluir</button>
+    </div>
+    <div class="ohi-actions">
+      <button type="button" class="small ghost" data-action="open">Abrir</button>
+      <button type="button" class="small ghost" data-action="dup">Duplicar pedido</button>
+      <button type="button" class="small ghost" data-action="pdf">Baixar PDF</button>
+      <button type="button" class="small ghost" data-action="xlsx">Baixar Excel</button>
+    </div>
+  `;
+  item.querySelector('[data-action="open"]').addEventListener('click', () => loadOrderFromHistory(o.ordNum));
+  item.querySelector('[data-action="dup"]').addEventListener('click', () => duplicateOrderFromHistory(o.ordNum));
+  item.querySelector('[data-action="del"]').addEventListener('click', () => deleteOrderFromHistory(o.ordNum));
+  item.querySelector('[data-action="pdf"]').addEventListener('click', () => downloadOrderPdf(o));
+  item.querySelector('[data-action="xlsx"]').addEventListener('click', () => downloadOrderXlsx(o));
+  return item;
+}
 
 function renderOrderHistoryList(){
   const listEl = document.getElementById('orderHistoryListEl');
@@ -2818,34 +3024,67 @@ function renderOrderHistoryList(){
     listEl.innerHTML = '<div class="empty-hint" style="padding:12px;">Nenhum pedido salvo ainda. Assim que você baixar um PDF ou Excel, o pedido aparece aqui.</div>';
     return;
   }
+
+  const term = document.getElementById('orderHistorySearch').value.trim();
+  const filtered = orders.filter(o => matchesOrderSearch(o, term));
+
+  if(filtered.length === 0){
+    listEl.innerHTML = '<div class="empty-hint" style="padding:12px;">Nenhum pedido encontrado para essa busca.</div>';
+    return;
+  }
+
   listEl.innerHTML = '';
-  orders.forEach(o => {
-    const item = document.createElement('div');
-    item.className = 'company-list-item';
-    const infoBits = [formatDateBR(o.ordDate), o.marca, `${o.items.length} item(ns)`, `${o.totQtd} peça(s)`, brl(o.totValor)].filter(Boolean).join(' · ');
-    item.innerHTML = `
-      <div class="ci-text"><div>${escapeHtml(o.ordNum || '(sem número)')}</div><div class="ci-cnpj">${escapeHtml(infoBits)}</div></div>
-      <div class="ci-actions">
-        <button type="button" class="small ghost" data-action="load" data-ord="${escapeHtml(o.ordNum)}">Carregar</button>
-        <button type="button" class="small danger-text" data-action="del" data-ord="${escapeHtml(o.ordNum)}">Excluir</button>
-      </div>
-    `;
-    listEl.appendChild(item);
+
+  if(term){
+    // busca ativa: lista simples, sem agrupar por dia (facilita achar o pedido buscado)
+    filtered.forEach(o => listEl.appendChild(buildOrderHistoryItemEl(o)));
+    return;
+  }
+
+  // sem busca: agrupa por dia (como "pastas"), mais recente primeiro
+  const groups = new Map();
+  filtered.forEach(o => {
+    const key = dayKeyFromIso(o.savedAt) || dayKeyFromIso(o.ordDate) || 'sem-data';
+    if(!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(o);
   });
-  listEl.querySelectorAll('[data-action="load"]').forEach(btn => {
-    btn.addEventListener('click', () => loadOrderFromHistory(btn.dataset.ord));
-  });
-  listEl.querySelectorAll('[data-action="del"]').forEach(btn => {
-    btn.addEventListener('click', () => deleteOrderFromHistory(btn.dataset.ord));
+  const dayKeys = Array.from(groups.keys()).sort((a,b) => b.localeCompare(a));
+  if(orderHistoryOpenDays.size === 0 && dayKeys.length){
+    orderHistoryOpenDays.add(dayKeys[0]); // abre a pasta mais recente por padrão
+  }
+
+  dayKeys.forEach(dayKey => {
+    const dayOrders = groups.get(dayKey);
+    const dayWrap = document.createElement('div');
+    dayWrap.className = 'order-history-day' + (orderHistoryOpenDays.has(dayKey) ? ' open' : '');
+
+    const header = document.createElement('button');
+    header.type = 'button';
+    header.className = 'order-history-day-header';
+    header.innerHTML = `<span class="ohd-chevron">▸</span><span class="ohd-label">📅 ${escapeHtml(formatDayLabel(dayKey))}</span><span class="ohd-count">${dayOrders.length} pedido(s)</span>`;
+
+    const body = document.createElement('div');
+    body.className = 'order-history-day-body';
+    body.style.display = orderHistoryOpenDays.has(dayKey) ? '' : 'none';
+    dayOrders.forEach(o => body.appendChild(buildOrderHistoryItemEl(o)));
+
+    header.addEventListener('click', () => {
+      const isOpen = orderHistoryOpenDays.has(dayKey);
+      if(isOpen){ orderHistoryOpenDays.delete(dayKey); } else { orderHistoryOpenDays.add(dayKey); }
+      body.style.display = isOpen ? 'none' : '';
+      dayWrap.classList.toggle('open', !isOpen);
+    });
+
+    dayWrap.appendChild(header);
+    dayWrap.appendChild(body);
+    listEl.appendChild(dayWrap);
   });
 }
 
-function loadOrderFromHistory(ordNum){
-  const o = orders.find(x => x.ordNum === ordNum);
-  if(!o) return;
-  if(!confirm(`Carregar o pedido ${ordNum}? Os itens preenchidos na tela atual serão substituídos (baixe o PDF/Excel antes, se precisar).`)) return;
+document.getElementById('orderHistorySearch').addEventListener('input', renderOrderHistoryList);
 
-  document.getElementById('ordNum').value = o.ordNum || '';
+function fillOrderFormFromSnapshot(o, ordNumOverride){
+  document.getElementById('ordNum').value = ordNumOverride != null ? ordNumOverride : (o.ordNum || '');
   document.getElementById('ordDate').value = o.ordDate || '';
   document.getElementById('ordPrazoPagto').value = o.prazoPagto || '';
   document.getElementById('ordDataFat').value = o.dataFat || '';
@@ -2856,7 +3095,7 @@ function loadOrderFromHistory(ordNum){
     renderCompanyDisplay();
   }
 
-  activeBatch = null;
+  resetApplyBar();
   tbody.innerHTML = '';
   o.items.forEach(it => {
     const tr = addItem(false);
@@ -2877,6 +3116,24 @@ function loadOrderFromHistory(ordNum){
   recalcTotals();
   updateCount();
   updateBulkDeleteState();
+}
+
+function loadOrderFromHistory(ordNum){
+  const o = orders.find(x => x.ordNum === ordNum);
+  if(!o) return;
+  if(!confirm(`Abrir o pedido ${ordNum}? Os itens preenchidos na tela atual serão substituídos (baixe o PDF/Excel antes, se precisar).`)) return;
+
+  fillOrderFormFromSnapshot(o);
+
+  document.getElementById('orderHistoryModalOverlay').classList.remove('open');
+}
+
+function duplicateOrderFromHistory(ordNum){
+  const o = orders.find(x => x.ordNum === ordNum);
+  if(!o) return;
+  if(!confirm(`Duplicar o pedido ${ordNum}? Um novo número de pedido será gerado e os itens preenchidos na tela atual serão substituídos (baixe o PDF/Excel antes, se precisar).`)) return;
+
+  fillOrderFormFromSnapshot(o, generateOrderNumber());
 
   document.getElementById('orderHistoryModalOverlay').classList.remove('open');
 }
@@ -2889,6 +3146,8 @@ function deleteOrderFromHistory(ordNum){
 }
 
 document.getElementById('btnOrderHistory').addEventListener('click', () => {
+  document.getElementById('orderHistorySearch').value = '';
+  orderHistoryOpenDays = new Set();
   renderOrderHistoryList();
   document.getElementById('orderHistoryModalOverlay').classList.add('open');
 });
@@ -2920,18 +3179,10 @@ const XLSX_DATA_TEXT = 'FF434343';
 const XLSX_HEADER_BORDER_COLOR = 'FF999999';
 const XLSX_DATA_BORDER_COLOR = 'FF434343';
 
-document.getElementById('btnXlsx').addEventListener('click', async () => {
-  const items = getItemsData();
-  if(items.length === 0){ alert('Adicione ao menos um item antes de exportar.'); return; }
-  saveCurrentOrderToHistory();
-
-  const g = (id) => document.getElementById(id).value.trim();
-  const ordNum = g('ordNum');
-  const marca = g('forNome');
-  const prazoPagto = getPagamentoText();
-  const dataFatIso = g('ordDataFat');
-  const dataFatDate = dataFatIso ? new Date(dataFatIso + 'T00:00:00') : null;
-  const obsGerais = g('ordObsGerais');
+async function buildXlsxBuffer(data){
+  // data: {ordNum, marca, prazoPagto, dataFat (iso "yyyy-mm-dd" ou null), obsGerais,
+  //        items: [{prod, ref, cor, tam, qtd, preco, triangular, etiquetagem, cnpjInicial (texto), cnpjFinal (texto), obs, responsavel}]}
+  const dataFatDate = data.dataFat ? new Date(data.dataFat + 'T00:00:00') : null;
 
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Pedido');
@@ -2946,13 +3197,13 @@ document.getElementById('btnXlsx').addEventListener('click', async () => {
     cell.border = { top: side, left: side, right: side, bottom: side };
   });
 
-  items.forEach(it => {
+  data.items.forEach(it => {
     const descricao = [it.prod, it.cor, it.tam].filter(Boolean).join(' - ');
     const sku = [it.ref, it.cor, it.tam].filter(Boolean).join(' - ');
     const rowValues = [
-      ordNum, descricao, sku, marca, it.qtd, it.preco, prazoPagto,
+      data.ordNum, descricao, sku, data.marca, it.qtd, it.preco, data.prazoPagto,
       dataFatDate, (it.triangular || 'Não').toUpperCase(), (it.etiquetagem || 'Sim').toUpperCase(),
-      it.cnpjInicial, it.cnpjFinal, obsGerais, it.responsavel
+      it.cnpjInicial, it.cnpjFinal, data.obsGerais, it.responsavel
     ];
     const row = ws.addRow(rowValues);
     row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
@@ -2968,27 +3219,62 @@ document.getElementById('btnXlsx').addEventListener('click', async () => {
     });
   });
 
-  const buf = await wb.xlsx.writeBuffer();
-  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  return await wb.xlsx.writeBuffer();
+}
+
+function downloadBlob(buf, filename, mime){
+  const blob = new Blob([buf], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = (ordNum || 'pedido') + '.xlsx';
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
-});
+}
 
-/* ---------- Exportar PDF ---------- */
-
-document.getElementById('btnPdf').addEventListener('click', () => {
+document.getElementById('btnXlsx').addEventListener('click', async () => {
   const items = getItemsData();
   if(items.length === 0){ alert('Adicione ao menos um item antes de exportar.'); return; }
   saveCurrentOrderToHistory();
 
   const g = (id) => document.getElementById(id).value.trim();
-  const company = getSelectedCompany();
+  const data = {
+    ordNum: g('ordNum'),
+    marca: g('forNome'),
+    prazoPagto: getPagamentoText(),
+    dataFat: g('ordDataFat'),
+    obsGerais: g('ordObsGerais'),
+    items
+  };
+  const buf = await buildXlsxBuffer(data);
+  downloadBlob(buf, (data.ordNum || 'pedido') + '.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+});
+
+async function downloadOrderXlsx(o){
+  const items = (o.items || []).map(it => ({
+    ...it,
+    cnpjInicial: companyLabel(it.cnpjInicial),
+    cnpjFinal: companyLabel(it.cnpjFinal)
+  }));
+  const data = {
+    ordNum: o.ordNum,
+    marca: o.marca,
+    prazoPagto: o.prazoPagto || '-',
+    dataFat: o.dataFat,
+    obsGerais: o.obsGerais,
+    items
+  };
+  const buf = await buildXlsxBuffer(data);
+  downloadBlob(buf, (data.ordNum || 'pedido') + '.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+}
+
+/* ---------- Exportar PDF ---------- */
+
+function buildPdfDoc(data){
+  // data: {ordNum, ordDate (iso), prazoPagto, dataFat (iso), obsGerais, company, marca,
+  //        items: [{prod, cor, tam, qtd, preco, sub, obs, triangular}]}
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({unit:'pt', format:'a4'});
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -3001,9 +3287,9 @@ document.getElementById('btnPdf').addEventListener('click', () => {
 
   doc.setFontSize(10);
   doc.setFont('helvetica','normal');
-  doc.text(`Ordem de compra: ${g('ordNum')}    Data: ${g('ordDate')}`, 40, y);
+  doc.text(`Ordem de compra: ${data.ordNum}    Data: ${data.ordDate}`, 40, y);
   y += 14;
-  doc.text(`Prazo de pagamento: ${getPagamentoText()}    Data de faturamento: ${formatDateBR(g('ordDataFat')) || '-'}`, 40, y);
+  doc.text(`Prazo de pagamento: ${data.prazoPagto || '-'}    Data de faturamento: ${formatDateBR(data.dataFat) || '-'}`, 40, y);
   y += 14;
   y += 8;
 
@@ -3013,8 +3299,8 @@ document.getElementById('btnPdf').addEventListener('click', () => {
   doc.text('Fornecedor', colX + colW + 20, y);
   y += 14;
   doc.setFont('helvetica','normal');
-  const empLines = company ? [company.nome, company.cnpj, company.cidadeUf].filter(Boolean) : [];
-  const forLines = [g('forNome')].filter(Boolean);
+  const empLines = data.company ? [data.company.nome, data.company.cnpj, data.company.cidadeUf].filter(Boolean) : [];
+  const forLines = [data.marca].filter(Boolean);
   const maxLines = Math.max(empLines.length, forLines.length);
   for(let i=0;i<maxLines;i++){
     if(empLines[i]) doc.text(empLines[i], colX, y, {maxWidth: colW});
@@ -3023,9 +3309,9 @@ document.getElementById('btnPdf').addEventListener('click', () => {
   }
   y += 10;
 
-  const body = items.map(it => [it.prod, it.cor, it.tam, String(it.qtd), brl(it.preco), brl(it.sub), (it.triangular || 'Não'), it.obs]);
-  const totQtd = items.reduce((s,it)=>s+it.qtd,0);
-  const totVal = items.reduce((s,it)=>s+it.sub,0);
+  const body = data.items.map(it => [it.prod, it.cor, it.tam, String(it.qtd), brl(it.preco), brl(it.sub), (it.triangular || 'Não'), it.obs]);
+  const totQtd = data.items.reduce((s,it)=>s+it.qtd,0);
+  const totVal = data.items.reduce((s,it)=>s+it.sub,0);
 
   doc.autoTable({
     startY: y,
@@ -3042,19 +3328,54 @@ document.getElementById('btnPdf').addEventListener('click', () => {
   });
 
   let finalY = doc.lastAutoTable.finalY + 20;
-  const obsGerais = g('ordObsGerais');
-  if(obsGerais){
+  if(data.obsGerais){
     if(finalY > doc.internal.pageSize.getHeight() - 80){ doc.addPage(); finalY = 40; }
     doc.setFont('helvetica','bold');
     doc.setFontSize(10);
     doc.text('Observações Gerais:', 40, finalY);
     doc.setFont('helvetica','normal');
-    doc.text(obsGerais, 40, finalY + 14, {maxWidth: pageWidth - 80});
+    doc.text(data.obsGerais, 40, finalY + 14, {maxWidth: pageWidth - 80});
   }
 
-  const fname = (g('ordNum') || 'pedido') + '.pdf';
-  doc.save(fname);
+  return doc;
+}
+
+document.getElementById('btnPdf').addEventListener('click', () => {
+  const items = getItemsData();
+  if(items.length === 0){ alert('Adicione ao menos um item antes de exportar.'); return; }
+  saveCurrentOrderToHistory();
+
+  const g = (id) => document.getElementById(id).value.trim();
+  const data = {
+    ordNum: g('ordNum'),
+    ordDate: g('ordDate'),
+    prazoPagto: getPagamentoText(),
+    dataFat: g('ordDataFat'),
+    obsGerais: g('ordObsGerais'),
+    company: getSelectedCompany(),
+    marca: g('forNome'),
+    items
+  };
+  const doc = buildPdfDoc(data);
+  doc.save((data.ordNum || 'pedido') + '.pdf');
 });
+
+function downloadOrderPdf(o){
+  const company = o.companyId ? (companies.find(c => String(c.id) === String(o.companyId)) || null) : null;
+  const items = (o.items || []).map(it => ({ ...it, sub: (it.qtd || 0) * (it.preco || 0) }));
+  const data = {
+    ordNum: o.ordNum,
+    ordDate: o.ordDate,
+    prazoPagto: o.prazoPagto || '-',
+    dataFat: o.dataFat,
+    obsGerais: o.obsGerais,
+    company,
+    marca: o.marca,
+    items
+  };
+  const doc = buildPdfDoc(data);
+  doc.save((data.ordNum || 'pedido') + '.pdf');
+}
 
 // init
 renderCompanySelect();
