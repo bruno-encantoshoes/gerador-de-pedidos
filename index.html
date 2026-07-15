@@ -1481,6 +1481,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         <span id="orderHistorySelCount" style="font-size:12px;color:var(--ink-soft);">0 selecionado(s)</span>
         <button type="button" class="small ghost" id="btnDownloadSelectedPdf" disabled>Baixar PDF</button>
         <button type="button" class="small ghost" id="btnDownloadSelectedXlsx" disabled>Baixar Excel</button>
+        <button type="button" class="small ghost" id="btnEmailSelected" disabled>📧 Enviar por e-mail</button>
       </div>
     </div>
 
@@ -3419,8 +3420,7 @@ function buildOrderHistoryItemEl(o){
   item.querySelector('[data-action="pdf"]').addEventListener('click', () => downloadOrderPdf(o));
   item.querySelector('[data-action="xlsx"]').addEventListener('click', () => downloadOrderXlsx(o));
   item.querySelector('[data-action="email"]').addEventListener('click', () => openOrderEmailDraft({
-    ordNum: o.ordNum, ordDate: o.ordDate, marca: o.marca, totQtd: o.totQtd, totValor: o.totValor,
-    email: getMarcaEmail(o.marca)
+    ordNums: [o.ordNum], marcas: [o.marca], email: getMarcaEmail(o.marca)
   }));
   return item;
 }
@@ -3510,6 +3510,7 @@ function updateOrderHistorySelectionUI(){
   document.getElementById('orderHistorySelCount').textContent = `${checked} selecionado(s)`;
   document.getElementById('btnDownloadSelectedPdf').disabled = checked === 0;
   document.getElementById('btnDownloadSelectedXlsx').disabled = checked === 0;
+  document.getElementById('btnEmailSelected').disabled = checked === 0;
   const selectAll = document.getElementById('selectAllOrderHistory');
   selectAll.checked = total > 0 && checked === total;
   selectAll.indeterminate = checked > 0 && checked < total;
@@ -3578,6 +3579,19 @@ document.getElementById('btnHistoryDownloadSeparate').addEventListener('click', 
     // pequeno intervalo entre downloads pra evitar que o navegador bloqueie downloads múltiplos automáticos
     await new Promise(r => setTimeout(r, 350));
   }
+  clearOrderHistorySelection();
+});
+
+document.getElementById('btnEmailSelected').addEventListener('click', () => {
+  const selected = getSelectedHistoryOrders();
+  if(selected.length === 0) return;
+  const ordNums = selected.map(o => o.ordNum);
+  const marcas = selected.map(o => o.marca);
+  // Só pré-preenche o destinatário quando todos os pedidos selecionados são do mesmo
+  // fornecedor — com fornecedores diferentes não dá pra saber qual e-mail usar.
+  const distinctMarcas = [...new Set(marcas.filter(Boolean))];
+  const email = distinctMarcas.length === 1 ? getMarcaEmail(distinctMarcas[0]) : '';
+  openOrderEmailDraft({ ordNums, marcas, email });
   clearOrderHistorySelection();
 });
 
@@ -3776,19 +3790,38 @@ function downloadBlob(buf, filename, mime){
 /* ---------- Enviar pedido por e-mail ----------
    O app não tem servidor por trás (é um arquivo estático no GitHub Pages), então o envio
    abre um rascunho no programa de e-mail padrão do usuário (Outlook, Gmail, Mail do
-   celular etc.) já com assunto e corpo preenchidos. Por limitação do próprio navegador,
-   um link "mailto:" não consegue anexar arquivos — por isso o corpo do e-mail lembra a
-   pessoa de anexar o PDF/Excel já baixado antes de enviar. */
-function buildOrderMailtoUrl({ ordNum, ordDate, marca, totQtd, totValor, email }){
-  const subject = `Pedido ${ordNum || ''}${marca ? ' - ' + marca : ''}`.trim();
+   celular etc.) já com assunto e corpo preenchidos, no padrão fixo usado pela empresa:
+   assunto "PEDIDOS ENCANTO SHOES - FORNECEDOR" e corpo com saudação/assinatura padrão.
+   Por limitação do próprio navegador, um link "mailto:" não consegue anexar arquivos. */
+
+// Formata uma lista de números de pedido em texto corrido: "nº 1", "nº 1 e 2" ou
+// "nº 1, 2 e 3" — usado tanto pro envio de um pedido só quanto de vários selecionados.
+function formatOrderNumList(nums){
+  const arr = (nums || []).filter(Boolean);
+  if(arr.length === 0) return '';
+  if(arr.length === 1) return `nº ${arr[0]}`;
+  return `nº ${arr.slice(0, -1).join(', ')} e ${arr[arr.length - 1]}`;
+}
+
+function buildOrderMailtoUrl({ ordNums, marcas, email }){
+  const numList = (Array.isArray(ordNums) ? ordNums : [ordNums]).filter(Boolean);
+  const marcaList = Array.isArray(marcas) ? marcas : [marcas];
+  // Assunto sempre no padrão "PEDIDOS ENCANTO SHOES - FORNECEDOR" — com fornecedores
+  // diferentes nos pedidos selecionados, lista todos separados por vírgula.
+  const distinctMarcas = [...new Set(marcaList.filter(Boolean).map(m => m.toUpperCase()))];
+  const subject = ['PEDIDOS ENCANTO SHOES', distinctMarcas.join(', ')].filter(Boolean).join(' - ');
+  const seguePart = numList.length <= 1
+    ? `Segue o pedido ${formatOrderNumList(numList)}.`
+    : `Seguem os pedidos ${formatOrderNumList(numList)}.`;
   const bodyLines = [
-    `Segue o pedido${ordNum ? ' nº ' + ordNum : ''}${marca ? ', fornecedor ' + marca : ''}.`,
+    'Prezado fornecedor,',
     '',
-    `Data do pedido: ${formatDateBR(ordDate) || '-'}`,
-    `Total de peças: ${totQtd || 0}`,
-    `Valor total: ${brl(totValor || 0)}`,
+    seguePart,
     '',
-    'Obs.: anexe o PDF/Excel do pedido (já baixado) antes de enviar — este rascunho não anexa arquivos automaticamente.'
+    'Att,',
+    '',
+    'Bruno Fontes',
+    'Grupo Encanto Shoes'
   ];
   // Se o fornecedor tiver um e-mail cadastrado (em "Meus Fornecedores"), o rascunho já
   // abre com o destinatário preenchido — senão, abre em branco como antes.
@@ -4030,11 +4063,9 @@ document.getElementById('btnEmailOrder').addEventListener('click', () => {
   const items = getItemsData();
   if(items.length === 0){ alert('Adicione ao menos um item antes de enviar por e-mail.'); return; }
   const g = (id) => document.getElementById(id).value.trim();
-  const totQtd = items.reduce((s, it) => s + it.qtd, 0);
-  const totValor = items.reduce((s, it) => s + it.qtd * it.preco, 0);
   const marca = g('forNome');
   openOrderEmailDraft({
-    ordNum: g('ordNum'), ordDate: g('ordDate'), marca, totQtd, totValor, email: getMarcaEmail(marca)
+    ordNums: [g('ordNum')], marcas: [marca], email: getMarcaEmail(marca)
   });
 });
 
