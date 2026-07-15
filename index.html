@@ -2560,6 +2560,23 @@ function backfillCompanyTiposIfMissing(){
   return changed;
 }
 
+/* Corrige nome e cidade/UF de empresas já cadastradas cujo CNPJ bate com um dos
+   CNPJs de referência (SEED_COMPANIES), mesmo que o cadastro já exista com dados
+   diferentes (ex.: nome digitado sem pontuação, sem o "- UF" na cidade, cadastro
+   feito manualmente antes da lista de referência existir). Garante que o texto
+   fique idêntico ao da lista oficial fornecida — pontuação, acentos e espaços
+   inclusive. Não mexe no campo "Tipo" (fica só a cargo do backfill acima). */
+function fixCompanyNamesAndCitiesToMatchReference(){
+  let changed = false;
+  companies.forEach(c => {
+    const sc = SEED_COMPANIES.find(x => normalizeCnpj(x.cnpj) === normalizeCnpj(c.cnpj));
+    if(!sc) return;
+    if(c.nome !== sc.nome){ c.nome = sc.nome; changed = true; }
+    if(c.cidadeUf !== sc.cidadeUf){ c.cidadeUf = sc.cidadeUf; changed = true; }
+  });
+  return changed;
+}
+
 document.getElementById('btnSaveCompany').addEventListener('click', () => {
   const nome = document.getElementById('cfNome').value.trim();
   const cnpj = document.getElementById('cfDoc').value.trim();
@@ -4194,6 +4211,7 @@ async function unlockApp(){
     const companiesSeeded = seedCompaniesIfMissing();
     const companiesFixed = fixKnownCompanyDataIssues();
     const companyTiposBackfilled = backfillCompanyTiposIfMissing();
+    const companyNamesFixed = fixCompanyNamesAndCitiesToMatchReference();
     if(gradesFile.exists){
       ghShas['grades.json'] = gradesFile.sha;
       grades = (gradesFile.data && gradesFile.data.grades) || [];
@@ -4247,7 +4265,7 @@ async function unlockApp(){
     renderPrazoSelect();
     renderCompradorSelect();
     refreshItemCompradorDropdowns();
-    if(companiesSeeded > 0 || companiesFixed || companyTiposBackfilled) scheduleGithubSave('companies');
+    if(companiesSeeded > 0 || companiesFixed || companyTiposBackfilled || companyNamesFixed) scheduleGithubSave('companies');
     if(marcasNeedMigration) scheduleGithubSave('marcas');
     if(prazosNeedMigration) scheduleGithubSave('prazos');
     if(compradoresSeeded > 0) scheduleGithubSave('compradores');
