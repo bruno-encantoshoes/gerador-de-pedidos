@@ -3304,11 +3304,20 @@ async function downloadOrderXlsx(o){
 
 function buildPdfDoc(data){
   // data: {ordNum, ordDate (iso), prazoPagto, dataFat (iso), obsGerais, company, marca,
-  //        items: [{prod, cor, tam, qtd, preco, sub, obs, triangular}]}
+  //        items: [{prod, ref, cor, tam, qtd, preco, sub, obs, triangular, cnpjFinal (texto)}]}
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({unit:'pt', format:'a4'});
   const pageWidth = doc.internal.pageSize.getWidth();
   let y = 40;
+
+  // Operação triangular é tratada como um dado do PEDIDO (não de cada item): se qualquer
+  // item estiver marcado como "Sim", o pedido inteiro é sinalizado logo no topo, ao lado
+  // do número da ordem de compra, de forma destacada — em vez de repetir numa coluna da
+  // tabela, onde passava despercebido.
+  const hasTriangular = data.items.some(it => String(it.triangular || '').trim().toLowerCase() === 'sim');
+  const cnpjsFinal = hasTriangular
+    ? [...new Set(data.items.filter(it => String(it.triangular || '').trim().toLowerCase() === 'sim' && it.cnpjFinal).map(it => it.cnpjFinal))]
+    : [];
 
   doc.setFont('helvetica','bold');
   doc.setFontSize(16);
@@ -3318,9 +3327,38 @@ function buildPdfDoc(data){
   doc.setFontSize(10);
   doc.setFont('helvetica','normal');
   doc.text(`Ordem de compra: ${data.ordNum}    Data: ${data.ordDate}`, 40, y);
+
+  // Selo "OPERAÇÃO TRIANGULAR" alinhado à direita, na mesma linha da ordem de compra.
+  const badgeLabel = `OPERAÇÃO TRIANGULAR: ${hasTriangular ? 'SIM' : 'NÃO'}`;
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(9);
+  const badgePadX = 8, badgeH = 16;
+  const badgeW = doc.getTextWidth(badgeLabel) + badgePadX * 2;
+  const badgeX = pageWidth - 40 - badgeW;
+  const badgeY = y - badgeH + 4;
+  if(hasTriangular){
+    doc.setFillColor(196, 68, 42);   // vermelho/laranja — chama atenção
+    doc.setTextColor(255, 255, 255);
+  } else {
+    doc.setFillColor(231, 242, 236); // verde suave — informativo, sem alarde
+    doc.setTextColor(28, 36, 48);
+  }
+  doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 3, 3, 'F');
+  doc.text(badgeLabel, badgeX + badgePadX, badgeY + badgeH - 5);
+  doc.setTextColor(0, 0, 0);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(10);
   y += 14;
+
   doc.text(`Prazo de pagamento: ${data.prazoPagto || '-'}    Data de faturamento: ${formatDateBR(data.dataFat) || '-'}`, 40, y);
   y += 14;
+
+  if(hasTriangular){
+    doc.setFont('helvetica','bold');
+    doc.text(`CNPJ Final Remessa: ${cnpjsFinal.length ? cnpjsFinal.join('  |  ') : '-'}`, 40, y, {maxWidth: pageWidth - 80});
+    doc.setFont('helvetica','normal');
+    y += 14;
+  }
   y += 8;
 
   const colX = 40, colW = (pageWidth - 80 - 20) / 2;
@@ -3339,21 +3377,27 @@ function buildPdfDoc(data){
   }
   y += 10;
 
-  const body = data.items.map(it => [it.prod, it.cor, it.tam, String(it.qtd), brl(it.preco), brl(it.sub), (it.triangular || 'Não'), it.obs]);
+  // Mesma composição de "Descrição do Produto" e "SKU" usada no Excel: produto/referência
+  // combinados com cor e tamanho num único texto, em vez de colunas separadas.
+  const body = data.items.map(it => {
+    const descricao = [it.prod, it.cor, it.tam].filter(Boolean).join(' - ');
+    const sku = [it.ref, it.cor, it.tam].filter(Boolean).join(' - ');
+    return [descricao, sku, String(it.qtd), brl(it.preco), brl(it.sub), it.obs];
+  });
   const totQtd = data.items.reduce((s,it)=>s+it.qtd,0);
   const totVal = data.items.reduce((s,it)=>s+it.sub,0);
 
   doc.autoTable({
     startY: y,
-    head: [['Produto','Cor','Tam.','Qtd','Preço Unit.','Subtotal','Op. Triangular','Obs.']],
+    head: [['Descrição do Produto','SKU','Qtd','Preço Unit.','Subtotal','Obs.']],
     body: body,
-    foot: [['', '', '', String(totQtd), 'Total', brl(totVal), '', '']],
+    foot: [['', '', String(totQtd), 'Total', brl(totVal), '']],
     styles: {fontSize:9, cellPadding:5},
     headStyles: {fillColor:[47,111,79], textColor:255, fontStyle:'bold'},
     footStyles: {fillColor:[231,242,236], textColor:[28,36,48], fontStyle:'bold'},
     margin: {left:40, right:40},
     columnStyles: {
-      3: {halign:'right'}, 4: {halign:'right'}, 5: {halign:'right'}
+      2: {halign:'right'}, 3: {halign:'right'}, 4: {halign:'right'}
     }
   });
 
@@ -3392,7 +3436,9 @@ document.getElementById('btnPdf').addEventListener('click', () => {
 
 function downloadOrderPdf(o){
   const company = o.companyId ? (companies.find(c => String(c.id) === String(o.companyId)) || null) : null;
-  const items = (o.items || []).map(it => ({ ...it, sub: (it.qtd || 0) * (it.preco || 0) }));
+  // o.items vem do histórico com o CNPJ Final Remessa salvo como ID cru — resolve para o
+  // texto (nome | CNPJ | cidade-UF), igual ao que já é feito para o Excel.
+  const items = (o.items || []).map(it => ({ ...it, sub: (it.qtd || 0) * (it.preco || 0), cnpjFinal: companyLabel(it.cnpjFinal) }));
   const data = {
     ordNum: o.ordNum,
     ordDate: o.ordDate,
