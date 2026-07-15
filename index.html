@@ -647,9 +647,11 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
   .table-wrap{overflow-x:auto;}
   table.items{
-    width:100%;
+    /* largura natural (soma das colunas), não esticada para preencher a tela à toa —
+       isso evita colunas curtas (Qtd, Tam.) ficarem com um monte de espaço vazio quando
+       a janela é larga. Se a tela for estreita, a .table-wrap acima rola horizontalmente. */
+    width:auto;
     border-collapse:collapse;
-    min-width:1900px;
     table-layout:auto;
   }
   table.items th{
@@ -660,8 +662,14 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     text-align:left;
     padding:8px 8px;
     border-bottom:2px solid var(--line);
-    white-space:nowrap;
+    /* os rótulos podem quebrar em 2 linhas: se o cabeçalho ficasse sempre numa linha só
+       (nowrap), colunas estreitas e numéricas (Qtd, Tam., Subtotal...) seriam alargadas
+       à força só pra caber o texto do título, "roubando" espaço de outras colunas. */
+    white-space:normal;
+    line-height:1.25;
+    vertical-align:bottom;
   }
+  table.items th.col-qtd, table.items th.col-preco, table.items th.col-sub{text-align:right;}
   table.items td{
     padding:6px 8px;
     border-bottom:1px solid var(--line);
@@ -675,6 +683,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     padding:7px 8px;
     border-radius:6px;
     font-family:inherit;
+    text-overflow:ellipsis;
   }
   table.items input:hover{border-color:var(--line);background:#fbfbfc;}
   table.items input:focus{
@@ -708,24 +717,30 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   }
   table.items select:hover{border-color:var(--line);background:#fbfbfc;}
   table.items select:focus{border-color:var(--accent);background:#fff;outline:none;}
-  .col-prod{min-width:190px;}
-  .col-ref{min-width:140px;}
-  .col-cor{min-width:120px;}
-  .col-tam{min-width:100px;}
-  .col-obs{min-width:150px;}
-  .col-qtd{min-width:90px;}
-  .col-preco{min-width:130px;}
-  .col-sub{min-width:130px;}
-  .col-date{width:118px;}
-  .col-sn{min-width:100px;}
-  .col-cnpj{min-width:210px;}
-  .col-resp{min-width:160px;}
-  .col-rm{width:34px;}
-  .col-check{width:34px;text-align:center;}
+  /* min-width (não width) em TODAS as colunas: "width" sozinho não é um piso garantido no
+     algoritmo de table-layout:auto — quando a tabela é mais larga que o espaço disponível,
+     o navegador comprime livremente colunas com "width" (e pode até escondê-las abaixo do
+     necessário para caber o conteúdo, cortando "10"/"11" em Qtd, por exemplo) antes de
+     acionar o scroll horizontal do .table-wrap. Com min-width, cada coluna tem um piso real:
+     ou cabe tudo, ou a tabela ultrapassa o container e o scroll horizontal assume. */
+  .col-prod{min-width:210px;}
+  .col-ref{min-width:135px;}
+  .col-cor{min-width:160px;}
+  .col-tam{min-width:72px;}
+  .col-obs{min-width:160px;}
+  .col-qtd{min-width:82px;}
+  .col-preco{min-width:112px;}
+  .col-sub{min-width:112px;}
+  .col-date{min-width:118px;}
+  .col-sn{min-width:96px;}
+  .col-cnpj{min-width:230px;}
+  .col-resp{min-width:150px;}
+  .col-rm{min-width:34px;}
+  .col-check{min-width:34px;text-align:center;}
   .col-check input[type="checkbox"],
   .row-check{width:16px;height:16px;cursor:pointer;}
   .subtotal-cell{font-weight:650;text-align:right;color:var(--ink);white-space:nowrap;}
-  .row-num{color:var(--ink-soft);font-size:12px;width:30px;}
+  .row-num{color:var(--ink-soft);font-size:12px;min-width:30px;}
   button:disabled{opacity:.45;cursor:not-allowed;}
   button:disabled:hover{background:transparent;}
   tfoot td{
