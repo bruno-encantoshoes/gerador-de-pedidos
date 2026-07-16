@@ -1410,7 +1410,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     <div id="marcaForm">
       <input type="hidden" id="mfId">
       <div class="field"><label>Marca / Fornecedor</label><input type="text" id="mfNome" placeholder="Nome da marca"></div>
-      <div class="field"><label>E-mail do fornecedor (opcional)</label><input type="email" id="mfEmail" placeholder="contato@fornecedor.com.br"></div>
+      <div class="field"><label>E-mail(s) do fornecedor (opcional)</label><input type="email" multiple id="mfEmail" placeholder="contato@fornecedor.com.br, financeiro@fornecedor.com.br"><div class="hint">Pode cadastrar mais de um, separados por vírgula — todos recebem o e-mail do pedido.</div></div>
       <div class="modal-actions">
         <button class="primary" id="btnSaveMarca">Salvar fornecedor</button>
         <button class="ghost" id="btnCancelEditMarca" style="display:none;">Cancelar edição</button>
@@ -2151,7 +2151,7 @@ function renderMarcaManageList(){
     const item = document.createElement('div');
     item.className = 'company-list-item';
     item.innerHTML = `
-      <div class="ci-text"><div>${escapeHtml(m.nome || '(sem nome)')}</div>${m.email ? `<div class="ci-cnpj">${escapeHtml(m.email)}</div>` : ''}</div>
+      <div class="ci-text"><div>${escapeHtml(m.nome || '(sem nome)')}</div>${m.email ? `<div class="ci-cnpj">${escapeHtml(formatEmailListDisplay(m.email))}</div>` : ''}</div>
       <div class="ci-actions">
         <button class="small ghost" data-action="edit" data-id="${m.id}">Editar</button>
         <button class="small danger-text" data-action="del" data-id="${m.id}">Excluir</button>
@@ -2188,11 +2188,29 @@ function resetMarcaForm(){
   document.getElementById('btnSaveMarca').textContent = 'Salvar fornecedor';
 }
 
-// Busca o e-mail cadastrado de um fornecedor pelo nome (usado pra pré-preencher o
-// destinatário no rascunho de e-mail do pedido).
+// Busca o(s) e-mail(s) cadastrado(s) de um fornecedor pelo nome (usado pra pré-preencher o
+// destinatário no rascunho de e-mail do pedido) — pode ser mais de um, separados por vírgula.
 function getMarcaEmail(nome){
   const m = marcasFornecedor.find(x => x.nome === nome);
   return (m && m.email) || '';
+}
+
+// Lista de e-mails separada por vírgula (ex.: "a@x.com,b@y.com") → array de e-mails
+// individuais, sem espaços e sem entradas vazias.
+function splitEmailList(emailStr){
+  return String(emailStr || '').split(',').map(e => e.trim()).filter(Boolean);
+}
+
+// Mesma lista, mas formatada pra exibição ("a@x.com, b@y.com").
+function formatEmailListDisplay(emailStr){
+  return splitEmailList(emailStr).join(', ');
+}
+
+// Monta a parte "destinatário" de um link mailto: a partir de uma lista de e-mails
+// separados por vírgula — cada endereço é codificado individualmente, e a vírgula entre
+// eles fica sem codificar (é o separador de múltiplos destinatários que o mailto espera).
+function buildMailtoTo(emailStr){
+  return splitEmailList(emailStr).map(encodeURIComponent).join(',');
 }
 
 function deleteMarca(id){
@@ -3835,9 +3853,9 @@ function buildOrderMailtoUrl({ ordNums, marcas, email }){
     'Bruno Fontes',
     'Grupo Encanto Shoes'
   ];
-  // Se o fornecedor tiver um e-mail cadastrado (em "Meus Fornecedores"), o rascunho já
-  // abre com o destinatário preenchido — senão, abre em branco como antes.
-  const to = email ? encodeURIComponent(email) : '';
+  // Se o fornecedor tiver e-mail(s) cadastrado(s) (em "Meus Fornecedores"), o rascunho já
+  // abre com o(s) destinatário(s) preenchido(s) — senão, abre em branco como antes.
+  const to = buildMailtoTo(email);
   return `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyLines.join('\n'))}`;
 }
 
