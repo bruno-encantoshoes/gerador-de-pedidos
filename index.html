@@ -1502,11 +1502,56 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   </div>
 </div>
 
+<div class="modal-overlay" id="confirmModalOverlay">
+  <div class="modal" style="max-width:420px;">
+    <h3 id="confirmModalTitle">Confirmar</h3>
+    <div class="modal-sub" id="confirmModalMessage"></div>
+    <div class="modal-actions">
+      <button type="button" class="ghost" id="btnConfirmModalCancel">Cancelar</button>
+      <button type="button" class="primary" id="btnConfirmModalOk">OK</button>
+    </div>
+  </div>
+</div>
+
 </div><!-- /#appRoot -->
 
 <script>
 let itemSeq = 0;
 const tbody = document.getElementById('itemsBody');
+
+/* ---------- Caixa de confirmação própria do app (substitui o confirm() nativo do
+   navegador) — mesmo visual dos outros modais (fundo escuro + card branco), com botões
+   "Cancelar"/"OK". Retorna uma Promise<boolean>, então todo chamador precisa usar
+   `await` no lugar de `if(!confirm(...))`. Se um modal (ex.: Histórico de Pedidos) já
+   estiver aberto, essa caixa some por cima dele normalmente, como os outros modais. */
+function showConfirmDialog(message){
+  return new Promise((resolve) => {
+    const overlay = document.getElementById('confirmModalOverlay');
+    const btnOk = document.getElementById('btnConfirmModalOk');
+    const btnCancel = document.getElementById('btnConfirmModalCancel');
+    document.getElementById('confirmModalMessage').textContent = message;
+    overlay.classList.add('open');
+
+    function cleanup(result){
+      overlay.classList.remove('open');
+      btnOk.removeEventListener('click', onOk);
+      btnCancel.removeEventListener('click', onCancel);
+      overlay.removeEventListener('click', onBackdrop);
+      document.removeEventListener('keydown', onKeydown);
+      resolve(result);
+    }
+    function onOk(){ cleanup(true); }
+    function onCancel(){ cleanup(false); }
+    function onBackdrop(e){ if(e.target === overlay) cleanup(false); }
+    function onKeydown(e){ if(e.key === 'Escape') cleanup(false); }
+
+    btnOk.addEventListener('click', onOk);
+    btnCancel.addEventListener('click', onCancel);
+    overlay.addEventListener('click', onBackdrop);
+    document.addEventListener('keydown', onKeydown);
+    btnOk.focus();
+  });
+}
 
 let companies = [];
 let companySeq = 0;
@@ -1833,10 +1878,10 @@ document.getElementById('selectAllItems').addEventListener('change', (e) => {
   updateBulkDeleteState();
 });
 
-document.getElementById('btnDeleteSelected').addEventListener('click', () => {
+document.getElementById('btnDeleteSelected').addEventListener('click', async () => {
   const checkedBoxes = tbody.querySelectorAll('.row-check:checked');
   if(checkedBoxes.length === 0) return;
-  if(!confirm(`Excluir ${checkedBoxes.length} item(ns) selecionado(s)?`)) return;
+  if(!(await showConfirmDialog(`Excluir ${checkedBoxes.length} item(ns) selecionado(s)?`))) return;
   checkedBoxes.forEach(cb => cb.closest('tr').remove());
   recalcTotals();
   updateCount();
@@ -1894,7 +1939,7 @@ document.getElementById('bulkEditModalOverlay').addEventListener('click', (e) =>
   }
 });
 
-document.getElementById('btnApplyBulkEdit').addEventListener('click', () => {
+document.getElementById('btnApplyBulkEdit').addEventListener('click', async () => {
   const checkedRows = Array.from(tbody.querySelectorAll('.row-check:checked')).map(cb => cb.closest('tr'));
   if(checkedRows.length === 0) return;
   const field = document.getElementById('bulkEditField').value;
@@ -1902,7 +1947,7 @@ document.getElementById('btnApplyBulkEdit').addEventListener('click', () => {
   const rawVal = valEl.value;
   const displayVal = valEl.tagName === 'SELECT' ? valEl.selectedOptions[0].textContent : rawVal;
   const fieldLabel = BULK_EDIT_LABELS[field] || field;
-  if(!confirm(`Aplicar "${fieldLabel}" = "${displayVal || '(vazio)'}" a ${checkedRows.length} item(ns) selecionado(s)? Isso substitui o valor atual desse campo nesses itens.`)) return;
+  if(!(await showConfirmDialog(`Aplicar "${fieldLabel}" = "${displayVal || '(vazio)'}" a ${checkedRows.length} item(ns) selecionado(s)? Isso substitui o valor atual desse campo nesses itens.`))) return;
 
   checkedRows.forEach(tr => {
     const input = tr.querySelector(`[data-field="${field}"]`);
@@ -2087,8 +2132,8 @@ function resetPrazoForm(){
   document.getElementById('btnSavePrazo').textContent = 'Salvar prazo';
 }
 
-function deletePrazo(id){
-  if(!confirm('Excluir este prazo da lista?')) return;
+async function deletePrazo(id){
+  if(!(await showConfirmDialog('Excluir este prazo da lista?'))) return;
   prazosPagto = prazosPagto.filter(p => p.id !== id);
   if(editingPrazoId === id) resetPrazoForm();
   renderPrazoManageList();
@@ -2230,8 +2275,8 @@ function buildMailtoTo(emailStr){
   return splitEmailList(emailStr).map(encodeURIComponent).join(',');
 }
 
-function deleteMarca(id){
-  if(!confirm('Excluir este fornecedor da lista?')) return;
+async function deleteMarca(id){
+  if(!(await showConfirmDialog('Excluir este fornecedor da lista?'))) return;
   marcasFornecedor = marcasFornecedor.filter(m => m.id !== id);
   if(editingMarcaId === id) resetMarcaForm();
   renderMarcaManageList();
@@ -2373,8 +2418,8 @@ function resetCompradorForm(){
   document.getElementById('btnSaveComprador').textContent = 'Salvar comprador';
 }
 
-function deleteComprador(id){
-  if(!confirm('Excluir este comprador da lista?')) return;
+async function deleteComprador(id){
+  if(!(await showConfirmDialog('Excluir este comprador da lista?'))) return;
   compradores = compradores.filter(c => c.id !== id);
   if(editingCompradorId === id) resetCompradorForm();
   renderCompradorManageList();
@@ -2541,8 +2586,8 @@ function resetCompanyForm(){
   document.getElementById('btnSaveCompany').textContent = 'Salvar empresa';
 }
 
-function deleteCompany(id){
-  if(!confirm('Excluir esta empresa da lista?')) return;
+async function deleteCompany(id){
+  if(!(await showConfirmDialog('Excluir esta empresa da lista?'))) return;
   companies = companies.filter(c => c.id !== id);
   if(editingCompanyId === id) resetCompanyForm();
   renderCompanyList();
@@ -2780,8 +2825,8 @@ function resetGradeForm(){
   document.getElementById('btnSaveGrade').textContent = 'Salvar grade';
 }
 
-function deleteGrade(id){
-  if(!confirm('Excluir esta grade da lista?')) return;
+async function deleteGrade(id){
+  if(!(await showConfirmDialog('Excluir esta grade da lista?'))) return;
   grades = grades.filter(g => g.id !== id);
   if(editingGradeId === id) resetGradeForm();
   renderGradeManageList();
@@ -3004,8 +3049,8 @@ function resetProportionForm(){
   document.getElementById('btnSaveProportion').textContent = 'Salvar proporção';
 }
 
-function deleteProportion(id){
-  if(!confirm('Excluir esta proporção da lista?')) return;
+async function deleteProportion(id){
+  if(!(await showConfirmDialog('Excluir esta proporção da lista?'))) return;
   proportions = proportions.filter(p => p.id !== id);
   if(editingProportionId === id) resetProportionForm();
   renderProportionManageList();
@@ -3241,11 +3286,11 @@ function cancelEditLeva(){
 
 document.getElementById('btnCancelEditLeva').addEventListener('click', cancelEditLeva);
 
-function deleteLeva(levaId){
+async function deleteLeva(levaId){
   const sum = getLevaSummary(levaId);
   if(!sum) return;
   const label = [sum.prod, sum.cor].filter(Boolean).join(' · ') || '(sem produto/cor)';
-  if(!confirm(`Excluir os ${sum.count} tamanho(s) desta leva (${label})?`)) return;
+  if(!(await showConfirmDialog(`Excluir os ${sum.count} tamanho(s) desta leva (${label})?`))) return;
   sum.rows.forEach(tr => tr.remove());
   levas = levas.filter(l => l.id !== levaId);
   if(editingLevaId === levaId) cancelEditLeva();
@@ -3342,8 +3387,8 @@ document.getElementById('btnRegenNum').addEventListener('click', regenerateOrder
 document.getElementById('btnAddRow').addEventListener('click', () => addItem(true));
 document.getElementById('btnAdd5').addEventListener('click', () => { for(let i=0;i<5;i++) addItem(false); });
 
-document.getElementById('btnNew').addEventListener('click', () => {
-  if(!confirm('Começar um novo pedido? Os itens e observações preenchidos serão perdidos (baixe o PDF/Excel antes, se precisar). As empresas cadastradas serão mantidas.')) return;
+document.getElementById('btnNew').addEventListener('click', async () => {
+  if(!(await showConfirmDialog('Começar um novo pedido? Os itens e observações preenchidos serão perdidos (baixe o PDF/Excel antes, se precisar). As empresas cadastradas serão mantidas.'))) return;
   editingOrderKey = null;
   resetApplyBar();
   tbody.innerHTML = '';
@@ -3391,10 +3436,10 @@ function saveCurrentOrderToHistory(){
   return true;
 }
 
-document.getElementById('btnSaveOrder').addEventListener('click', () => {
+document.getElementById('btnSaveOrder').addEventListener('click', async () => {
   const items = getItemsData();
   if(items.length === 0){ alert('Adicione ao menos um item antes de salvar o pedido.'); return; }
-  if(!confirm('Salvar este pedido no histórico? Isso não baixa nenhum arquivo, só grava os dados atuais.')) return;
+  if(!(await showConfirmDialog('Salvar este pedido no histórico? Isso não baixa nenhum arquivo, só grava os dados atuais.'))) return;
   saveCurrentOrderToHistory();
 });
 
@@ -3677,10 +3722,10 @@ function fillOrderFormFromSnapshot(o, ordNumOverride){
   updateBulkDeleteState();
 }
 
-function loadOrderFromHistory(ordNum){
+async function loadOrderFromHistory(ordNum){
   const o = orders.find(x => x.ordNum === ordNum);
   if(!o) return;
-  if(!confirm(`Abrir o pedido ${ordNum}? Os itens preenchidos na tela atual serão substituídos (baixe o PDF/Excel antes, se precisar).`)) return;
+  if(!(await showConfirmDialog(`Abrir o pedido ${ordNum}? Os itens preenchidos na tela atual serão substituídos (baixe o PDF/Excel antes, se precisar).`))) return;
 
   fillOrderFormFromSnapshot(o);
   editingOrderKey = o.ordNum;
@@ -3688,10 +3733,10 @@ function loadOrderFromHistory(ordNum){
   document.getElementById('orderHistoryModalOverlay').classList.remove('open');
 }
 
-function duplicateOrderFromHistory(ordNum){
+async function duplicateOrderFromHistory(ordNum){
   const o = orders.find(x => x.ordNum === ordNum);
   if(!o) return;
-  if(!confirm(`Duplicar o pedido ${ordNum}? Um novo número de pedido será gerado e os itens preenchidos na tela atual serão substituídos (baixe o PDF/Excel antes, se precisar).`)) return;
+  if(!(await showConfirmDialog(`Duplicar o pedido ${ordNum}? Um novo número de pedido será gerado e os itens preenchidos na tela atual serão substituídos (baixe o PDF/Excel antes, se precisar).`))) return;
 
   fillOrderFormFromSnapshot(o, generateOrderNumber());
   // É um pedido novo (ainda não existe no histórico com esse número) — não deve
@@ -3701,8 +3746,8 @@ function duplicateOrderFromHistory(ordNum){
   document.getElementById('orderHistoryModalOverlay').classList.remove('open');
 }
 
-function deleteOrderFromHistory(ordNum){
-  if(!confirm(`Excluir o pedido ${ordNum} do histórico? Isso não apaga PDFs/Excels já baixados.`)) return;
+async function deleteOrderFromHistory(ordNum){
+  if(!(await showConfirmDialog(`Excluir o pedido ${ordNum} do histórico? Isso não apaga PDFs/Excels já baixados.`))) return;
   orders = orders.filter(o => o.ordNum !== ordNum);
   renderOrderHistoryList();
   scheduleGithubSave('orders');
@@ -4281,8 +4326,8 @@ document.getElementById('btnGateForget').addEventListener('click', () => {
   showGateStep('gateStepConnect');
 });
 
-document.getElementById('btnLogout').addEventListener('click', () => {
-  if(!confirm('Sair? Você vai precisar digitar a senha novamente para acessar seus dados.')) return;
+document.getElementById('btnLogout').addEventListener('click', async () => {
+  if(!(await showConfirmDialog('Sair? Você vai precisar digitar a senha novamente para acessar seus dados.'))) return;
   clearGhConfigFromStorage();
   location.reload();
 });
