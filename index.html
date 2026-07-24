@@ -1786,6 +1786,23 @@ function addItem(focusFirst){
   return tr;
 }
 
+// Ao passar o mouse sobre um campo da tabela de itens (texto ou seleção), mostra o
+// conteúdo completo num tooltip nativo — útil quando a coluna é estreita demais e o
+// texto fica cortado (ex.: "Chinelo Masculino Rider S..."). Usa delegação de evento
+// (um listener só, na tabela) em vez de mexer em cada lugar que define o valor do campo
+// (leva, histórico, edição em massa etc.) — o título é recalculado na hora do hover,
+// então sempre reflete o valor atual, não importa como ele chegou lá.
+tbody.addEventListener('mouseover', (e) => {
+  const el = e.target.closest('input[data-field], select[data-field]');
+  if(!el) return;
+  if(el.tagName === 'SELECT'){
+    const opt = el.options[el.selectedIndex];
+    el.title = opt ? opt.textContent : '';
+  } else {
+    el.title = el.value;
+  }
+});
+
 /* ---------- Seleção em massa / exclusão em massa dos itens ---------- */
 
 function updateBulkDeleteState(){
